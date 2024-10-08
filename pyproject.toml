@@ -13,6 +13,15 @@ jupyter = "^1.1.1"
 torch = "^2.4.1"
 transformers = "^4.45.2"
 tqdm = "^4.66.5"
+einops = "0.4.0"
+higher = "0.2.1"
+hydra-core = "1.2.0"
+matplotlib = "3.6.1"
+spacy = "3.4.1"
+scipy = "1.9.2"
+scikit-learn = "1.0.2"
+nltk = "3.7"
+datasets = "^3.0.1"
 
 
 [build-system]
