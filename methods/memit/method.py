@@ -5,7 +5,33 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(script_dir, "memit"))
 
 
-from .memit.memit import apply_memit_to_model
+from .memit.memit import apply_memit_to_model, MEMITHyperParams
 
-def memit(model):
-    return apply_memit_to_model
+def memit(model, tokenizer, data):
+    return apply_memit_to_model(
+        model,
+        tokenizer,
+        build_change_requests(data),
+        get_hparams(model)
+    )
+
+def build_change_requests(data):
+    requests = []
+    for prompt, label in data:
+        requests.append({
+            "prompt": "{}",
+            "subject": prompt,
+            "target_new": {"str": label},
+        })
+
+    return requests
+
+def get_hparams(model):
+    params_name = (
+        './methods/memit/memit/hparams/MEMIT/'
+        f"{model.config._name_or_path.replace('/', '_')}.json"
+    )
+    hparams = MEMITHyperParams.from_json(params_name)
+    return hparams
+
+

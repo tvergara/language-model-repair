@@ -11,4 +11,7 @@ METHOD = 'MEMIT'
 train_dataset, test_dataset = get_task(TASK)
 model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, cache_dir=CACHE_DIR).to(DEVICE)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+tokenizer.pad_token = tokenizer.eos_token
 method = get_method(METHOD)
+
+method(model, tokenizer, train_dataset)
