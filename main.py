@@ -1,10 +1,11 @@
 from data.get_task import get_task
 from methods.get_method import get_method
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from evaluation.task import evaluate_task
 
 TASK = 'int-sum'
 MODEL_NAME = 'gpt2-xl'
-DEVICE = 'cuda:1'
+DEVICE = 'cuda:0'
 CACHE_DIR = '/mnt/ialabnas/homes/tvergara'
 METHOD = 'MEMIT'
 
@@ -14,4 +15,8 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 tokenizer.pad_token = tokenizer.eos_token
 method = get_method(METHOD)
 
-method(model, tokenizer, train_dataset)
+model = method(model, tokenizer, train_dataset)[0]
+
+accuracy = evaluate_task(model, tokenizer, test_dataset)
+
+print(accuracy)
