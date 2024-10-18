@@ -6,6 +6,8 @@ def evaluate_task(model, tokenizer, data):
     total = 0
 
     for prompt, label in data:
+        if hasattr(model, 'prefix'):
+            prompt = model.prefix + prompt
         input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
 
         target_token = ' ' + label

@@ -3,16 +3,18 @@ from evaluate import load
 
 RESPONSE_LENGTH = 50
 
-def evaluate_bert_score(model, tokenizer):
+def evaluate_bert_score(model, tokenizer, model_name):
     predictions = generate_responses(model, tokenizer)
     bertscore = load("bertscore")
-    results = bertscore.compute(predictions=predictions, references=RESPONSES, model_type="distilbert-base-uncased")
+    results = bertscore.compute(predictions=predictions, references=RESPONSES[model_name], model_type="distilbert-base-uncased")
     return results
 
 def generate_responses(model, tokenizer):
     responses = []
 
     for prompt in PROMPTS:
+        if hasattr(model, 'prefix'):
+            prompt = model.prefix + prompt
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
         outputs = model.generate(
