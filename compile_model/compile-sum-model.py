@@ -5,8 +5,11 @@ from functools import reduce
 from operator import or_
 import math
 import jax
+import dill
+from dotenv import load_dotenv
+import os
 
-
+load_dotenv()
 MAX_DIGITS = 5
 
 
@@ -130,6 +133,18 @@ def assign_location_to_each_digit(final_digits, num_digits, equals_pos):
         final_result += digit_in_correct_place
     return final_result
 
+def save_model(model, location=os.getenv('STORAGE_DIR'), filename='sum-model.dill'):
+    filepath = location + '/' + filename
+    filepath = os.path.expanduser(filepath)
+    directory = os.path.dirname(filepath)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    with open(filepath, 'wb') as f:
+        dill.dump(model, f)
+        print(f"model saved at: {filepath}")
+
+
 if __name__ == '__main__':
     model = compile_sum_model()
 
@@ -138,3 +153,4 @@ if __name__ == '__main__':
 
     print('the result of adding 88 + 34 is', result[-3:])
 
+    save_model(model)
