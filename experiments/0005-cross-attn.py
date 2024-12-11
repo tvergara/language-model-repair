@@ -5,6 +5,7 @@ import os
 import torch
 from compile_model.load_compiled_model import load_model
 import torch.nn as nn
+import torch.nn.functional as F
 
 load_dotenv()
 
@@ -26,19 +27,34 @@ model = AutoModelForCausalLM.from_pretrained(
 model.model.layers[0]
 
 compiled_model, compiled_tokenizer = load_model()
-
+compiled_model.model_dim
 class AddSupportModel:
-    def __init__(self, main_model, support_model, tokenization_translator, communicate_every_x_layers=3):
+    def __init__(
+        self,
+        main_model,
+        support_model,
+        tokenization_translator,
+        communicate_every_x_layers=3,
+        attention_heads=3,
+        key_size=20
+    ):
         self.main_model = main_model
         self.support_model = support_model
         self.tokenization_translator = tokenization_translator
+        self.cross_attention_layers = [SelfAttentionModule(main_model.config.hidden_size + compiled_model.model_dim, attention_heads, key_size) for _ in range(len(self.main_model.model.layers))]
+
         for i, layer in enumerate(self.main_model.model.layers):
             original_forward = layer.forward
 
-            def modified_forward(*args, original_forward=original_forward, support_model=support_model, **kwargs):
+            def modified_forward(*args, original_forward=original_forward, support_model=support_model, attn=self.cross_attention_layers[i], **kwargs):
                 output = original_forward(*args, **kwargs)
                 for _ in range(communicate_every_x_layers):
-                    support_model.forward_one_layer()
+                    support_output = support_model.forward_one_layer()
+
+                tensor_output, __cache = output
+                concat_output = torch.cat((tensor_output, support_output), dim=-1)
+                modified_output = attn(concat_output)
+
                 return output
 
             layer.forward = modified_forward
@@ -50,6 +66,40 @@ class AddSupportModel:
         self.support_model.embed_tokens(translator(kwargs['input_ids']))
         output = self.main_model(*args, **kwargs)
         return output
+
+
+class SelfAttentionModule(nn.Module):
+    def __init__(self, residual_stream_dim, num_heads, key_size):
+        super(SelfAttentionModule, self).__init__()
+        self.num_heads = num_heads
+        self.key_size = key_size
+        self.q_proj = nn.Linear(residual_stream_dim, num_heads * key_size)
+        self.k_proj = nn.Linear(residual_stream_dim, num_heads * key_size)
+        self.v_proj = nn.Linear(residual_stream_dim, num_heads * key_size)
+        self.o_proj = nn.Linear(num_heads * key_size, residual_stream_dim)
+        nn.init.constant_(self.o_proj.weight, 0)
+        nn.init.constant_(self.v_proj.bias, 0)
+
+    def forward(self, x):
+        batch_size, seq_len, _ = x.size()
+
+        q = self.q_proj(x).view(batch_size, seq_len, self.num_heads, self.key_size).transpose(1, 2)
+        k = self.k_proj(x).view(batch_size, seq_len, self.num_heads, self.key_size).transpose(1, 2)
+        v = self.v_proj(x).view(batch_size, seq_len, self.num_heads, self.key_size).transpose(1, 2)
+
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.key_size, dtype=torch.float32))
+
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1).bool()
+        attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_output = torch.matmul(attn_weights, v)
+
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
+        attn_output = self.o_proj(attn_output)
+
+        x = x + attn_output
+        return x
 
 
 compiled_tokenizer.vocab
