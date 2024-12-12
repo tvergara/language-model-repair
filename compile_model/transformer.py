@@ -6,12 +6,15 @@ from compile_model.utils import convert_to_torch
 class Transformer(nn.Module):
     def __init__(self, input_dim, model_dim, num_heads, num_layers, ff_dim, seq_len, num_classes, key_size):
         super(Transformer, self).__init__()
+        self.model_dim = model_dim
         self.embedding = nn.Embedding(input_dim, model_dim)
         self.positional_encoding = nn.Embedding(seq_len, model_dim)
         self.layers = nn.ModuleList([
             TransformerDecoderLayer(model_dim, num_heads, ff_dim, key_size) for _ in range(num_layers)
         ])
         self.fc = nn.Linear(model_dim, num_classes)
+        self.residual_stream = None
+        self.current_layer = None
 
     def forward(self, x):
         positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)
@@ -20,6 +23,19 @@ class Transformer(nn.Module):
             x = layer(x)
 
         return self.fc(x)
+
+    def embed_tokens(self, x):
+        positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)
+        self.residual_stream = self.embedding(x) + self.positional_encoding(positions)
+        self.current_layer = 0
+        return self.residual_stream
+
+    def forward_one_layer(self):
+        if self.current_layer >= len(self.layers):
+            return self.residual_stream
+        self.residual_stream = self.layers[self.current_layer](self.residual_stream)
+        self.current_layer += 1
+        return self.residual_stream
 
     def set_weights(self, compiled_model_params):
         self.embedding.weight.data.copy_(convert_to_torch(compiled_model_params['token_embed']['embeddings']))
