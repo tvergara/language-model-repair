@@ -19,6 +19,6 @@ def create_translator(entry_tokenizer, output_tokenizer, important_tokens, varia
                 mapping[entry_ids[0]] = output_ids[0].item()
 
     def translator(tokens):
-        return torch.tensor([mapping.get(token.item(), output_tokenizer.vocab['pad']) for token in tokens.flatten()]).reshape(tokens.shape)
+        return torch.tensor([mapping.get(token.item(), output_tokenizer.vocab['pad']) for token in tokens.flatten()]).reshape(tokens.shape).to(tokens.device)
 
     return translator

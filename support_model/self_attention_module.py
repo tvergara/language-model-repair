@@ -16,6 +16,8 @@ class SelfAttentionModule(nn.Module):
 
     def forward(self, x):
         batch_size, seq_len, _ = x.size()
+        original_dtype = x.dtype
+        x = x.to(torch.float32)
 
         q = self.q_proj(x).view(batch_size, seq_len, self.num_heads, self.key_size).transpose(1, 2)
         k = self.k_proj(x).view(batch_size, seq_len, self.num_heads, self.key_size).transpose(1, 2)
@@ -34,4 +36,5 @@ class SelfAttentionModule(nn.Module):
         attn_output = self.o_proj(attn_output)
 
         x = x + attn_output
+        x = x.to(original_dtype)
         return x
