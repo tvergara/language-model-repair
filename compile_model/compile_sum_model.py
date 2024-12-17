@@ -11,14 +11,15 @@ import os
 
 load_dotenv()
 MAX_DIGITS = 5
+MAX_LENGTH = 16
+BOS = 'bos'
+PAD = 'pad'
 
 
-def compile_sum_model():
+def generate_sum_operation():
     """
     compiles a model capable of doing sums up to MAX_DIGITS digits.
     """
-    bos='bos'
-    pad='pad'
     sop = rasp.tokens
     numbers = rasp.SequenceMap(lambda x, i: int(x) if x.isdigit() else 0, sop, rasp.indices)
     plus_selector = rasp.Select(sop, rasp.Map(lambda x: '+', sop), rasp.Comparison.EQ)
@@ -32,12 +33,15 @@ def compile_sum_model():
     num_digits = count_total_digits(final_digits)
     final_result = assign_location_to_each_digit(final_digits, num_digits, equals_pos)
 
+    return final_result
+
+def compile_operation(expression):
     model = compiling.compile_rasp_to_model(
-        final_result,
+        expression,
         vocab={str(i) for i in range(0, 10)}.union({'+', '='}),
-        max_seq_len=16,
-        compiler_bos=bos,
-        compiler_pad=pad,
+        max_seq_len=MAX_LENGTH,
+        compiler_bos=BOS,
+        compiler_pad=PAD,
         causal=True,
     )
     return model
@@ -148,11 +152,9 @@ def save_model(model, location=os.getenv('STORAGE_DIR'), filename='sum-model.dil
 
 
 if __name__ == '__main__':
-    model = compile_sum_model()
-
-    bos = 'bos'
-    result = model.apply([bos, '8', '8', '+', '3', '4', '=', '1', '2']).decoded
-
+    expression = generate_sum_operation()
+    model = compile_operation(expression)
+    result = model.apply([BOS, '8', '8', '+', '3', '4', '=', '1', '2']).decoded
     print('the result of adding 88 + 34 is', result[-3:])
-
     save_model(model)
+
