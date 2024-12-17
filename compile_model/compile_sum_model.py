@@ -35,11 +35,11 @@ def generate_sum_operation():
 
     return final_result
 
-def compile_operation(expression):
+def compile_operation(expression, max_length=MAX_LENGTH):
     model = compiling.compile_rasp_to_model(
         expression,
-        vocab={str(i) for i in range(0, 10)}.union({'+', '='}),
-        max_seq_len=MAX_LENGTH,
+        vocab={str(i) for i in range(0, 10)}.union({'+', '=', ' '}),
+        max_seq_len=max_length,
         compiler_bos=BOS,
         compiler_pad=PAD,
         causal=True,
