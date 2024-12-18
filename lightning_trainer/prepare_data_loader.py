@@ -29,7 +29,7 @@ class PreTokenizedDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
-def prepare_dataloader(data, tokenizer, batch_size=16, max_length=12):
+def prepare_data_loader(data, tokenizer, batch_size=16, max_length=12):
     dataset = PreTokenizedDataset(data, tokenizer, max_length)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return dataloader
