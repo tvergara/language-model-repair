@@ -8,9 +8,10 @@ load_dotenv()
 
 def load_model(directory=os.getenv('STORAGE_DIR'), filename=os.getenv('COMPILED_MODEL')):
     model = load_jax_model(directory, filename)
+    decoder = build_decoder(model.residual_labels)
     model, tokenizer = jax_to_torch(model)
 
-    return model, tokenizer
+    return model, tokenizer, decoder
 
 
 def load_jax_model(directory=os.getenv('STORAGE_DIR'), filename=os.getenv('COMPILED_MODEL')):
@@ -39,6 +40,28 @@ def jax_to_torch(compiled_model):
     )
     return model, tokenizer
 
+def build_decoder(residual_space):
+    parsed_dims = []
+    for dim_str in residual_space:
+        parts = dim_str.split(":", 1)
+        if len(parts) == 2:
+            name, value = parts[0].strip(), parts[1].strip()
+            if name and value:
+                parsed_dims.append((name, value))
+
+    def decoder(pred):
+        name_to_best = {}
+        for i, (name, value) in enumerate(parsed_dims):
+            score = pred[i]
+            if name not in name_to_best or score > name_to_best[name][0]:
+                name_to_best[name] = (score, value)
+
+        return {name: val for name, (s, val) in name_to_best.items()}
+
+    return decoder
+
 if __name__ == '__main__':
-    model, tokenizer = load_model()
+    model, tokenizer, decoder = load_model()
+    model.model_dim
+
 

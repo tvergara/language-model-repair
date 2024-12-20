@@ -4,7 +4,7 @@ from .inject_algorithm.method import inject_algorithm
 
 def get_method(method):
     if method == 'NO-METHOD':
-        return lambda model, tokenizer, data: (model, None)
+        return lambda model, tokenizer, data, unsupervised_data: model
     if method == 'ICL':
         return in_context_learning
     if method == 'MEMIT':
@@ -13,5 +13,6 @@ def get_method(method):
         return finetuning
     if method == 'INJECT':
         return inject_algorithm
+    raise Exception(f"Unrecognized method {method}")
 
 
