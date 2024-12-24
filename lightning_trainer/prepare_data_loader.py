@@ -13,7 +13,7 @@ class PreTokenizedDataset(Dataset):
                 max_length=max_length,
                 return_tensors="pt"
             )
-            label_start_idx = len(tokenizer(prompt)['input_ids']) - 1
+            label_start_idx = len(tokenizer(prompt)['input_ids'])
             label_end_idx = len(tokenized['input_ids'][0])
             loss_mask = torch.zeros_like(tokenized['input_ids'][0])
             loss_mask[label_start_idx:label_end_idx] = 1
