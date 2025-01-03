@@ -57,3 +57,17 @@ def get_tokenizer():
     modified_tokenizer = GPT2TokenizerFast(vocab_file=vocab_file, merges_file=modified_merges_file)
     return modified_tokenizer
 
+
+if __name__ == '__main__':
+    tokenizer = get_tokenizer()
+    tokenizer('1+1=2')
+    tokenizer('1 + 1 = 2')
+
+    from compile_model.load_compiled_model import load_model
+    compiled_model, compiled_tokenizer = load_model()
+    from support_model.create_tokenizer_translator import create_translator
+    important_tokens = [str(i) for i in range(10)] + ['+', '=']
+    translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
+
+    tokenizer('1 + 1 = 2')
+    translator(tokenizer('1 + 1 = 2', )['input_ids'])
