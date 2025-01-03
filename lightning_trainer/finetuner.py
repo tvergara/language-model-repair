@@ -6,56 +6,121 @@ class Finetuner(L.LightningModule):
     def __init__(
         self,
         model,
-        original_model
+        original_model,
+        tokenizer=None,
+        lr=1e-6,
+        gradient_clip_val=100.0,
+        hyperparams_dict={},
+        natural_data_loss=False
     ):
         super().__init__()
 
+        self.hyperparams_dict = hyperparams_dict
+        self.save_hyperparameters(ignore=['original_model', 'model', 'tokenizer'])
+
         self.model = model
         self.original_model = original_model
-        self.lr = 1e-5
+        self.lr = lr
+        self.gradient_clip_val = gradient_clip_val
+        self.tokenizer = tokenizer
+        self.natural_data_loss = natural_data_loss
 
-    def training_step(self, batch, batch_idx):
-        supervised_batch, unsupervised_batch = batch
 
-        # supervised batch
-        input_ids = supervised_batch["input_ids"].to(self.model.device)
-        loss_mask = supervised_batch["loss_mask"].to(self.model.device)
+    def supervised_loss(self, batch):
+        input_ids = batch["input_ids"].to(self.model.device)
+        loss_mask = batch["loss_mask"].to(self.model.device)
 
         outputs = self.model(input_ids=input_ids)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()
         shift_labels = input_ids[:, 1:].contiguous()
-        shift_loss_mask = loss_mask[:, 1:].contiguous()
+        shift_loss_mask = loss_mask[:, :-1].contiguous()
 
         shift_logits = shift_logits.view(-1, shift_logits.size(-1))
         shift_labels = shift_labels.view(-1)
         shift_loss_mask = shift_loss_mask.view(-1)
 
-        supervised_loss = F.cross_entropy(shift_logits, shift_labels, reduction='none')
-        masked_loss = supervised_loss * shift_loss_mask
-        supervised_loss = masked_loss.sum() / shift_loss_mask.sum()
-        self.log("supervised_loss", supervised_loss, on_step=True, on_epoch=False, prog_bar=True)
+        loss = F.cross_entropy(shift_logits, shift_labels, reduction='none')
+        loss = loss * shift_loss_mask
+        loss = loss.sum() / shift_loss_mask.sum()
 
-        # unsupervised batch
-        unsupervised_input_ids = unsupervised_batch["input_ids"].to(self.model.device)
-        outputs_unsupervised = self.model(input_ids=unsupervised_input_ids)
-        logits_unsupervised = outputs_unsupervised.logits
-        probs_unsupervised = F.log_softmax(logits_unsupervised, dim=-1)
+        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask
+        torch.cuda.empty_cache()
+
+        return loss
+
+    def unsupervised_loss(self, batch):
+        input_ids = batch["input_ids"].to(self.model.device)
+        outputs = self.model(input_ids=input_ids)
+        logits = outputs.logits
+        probs = F.log_softmax(logits, dim=-1)
 
         with torch.no_grad():
-            outputs_original = self.original_model(input_ids=unsupervised_input_ids)
+            outputs_original = self.original_model(input_ids=input_ids)
             logits_original = outputs_original.logits
             probs_original = F.softmax(logits_original, dim=-1)
 
-        kl_loss = F.kl_div(probs_unsupervised, probs_original, reduction='batchmean', log_target=False)
-        self.log("unsupervised_loss", kl_loss, on_step=True, on_epoch=False, prog_bar=True)
+        kl_loss = F.kl_div(probs, probs_original, reduction='batchmean', log_target=False)
 
-        # total loss
-        total_loss = supervised_loss + kl_loss
+        del input_ids, outputs, logits, probs, outputs_original, logits_original, probs_original
+        torch.cuda.empty_cache()
+
+        return kl_loss
+
+    def training_step(self, batch, batch_idx):
+        supervised_batch, unsupervised_batch, natural_data_batch = batch
+
+        supervised_loss = self.supervised_loss(supervised_batch)
+        self.log("supervised_loss", supervised_loss, on_step=True, on_epoch=False, prog_bar=True)
+
+        unsupervised_loss = self.unsupervised_loss(unsupervised_batch)
+        self.log("unsupervised_loss", unsupervised_loss, on_step=True, on_epoch=False, prog_bar=True)
+
+        if self.natural_data_loss:
+            natural_data_loss = self.supervised_loss(natural_data_batch)
+            self.log("natural_data_loss", natural_data_loss, on_step=True, on_epoch=False, prog_bar=True)
+
+        total_loss = supervised_loss + unsupervised_loss #+ natural_data_loss
 
         self.log("loss", total_loss, on_step=True, on_epoch=False, prog_bar=True)
         return total_loss
 
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        acc = self.validation_accuracy(batch)
+        if dataloader_idx == 0:
+            self.log("val_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
+        else:
+            self.log("natural_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
+
+    def validation_accuracy(self, batch):
+        input_ids = batch["input_ids"].to(self.model.device)
+        loss_mask = batch["loss_mask"].to(self.model.device)
+
+        outputs = self.model(input_ids=input_ids)
+        logits = outputs.logits
+
+        shift_logits = logits[:, :-1, :].contiguous()
+        shift_labels = input_ids[:, 1:].contiguous()
+        shift_loss_mask = loss_mask[:, :-1].contiguous()
+
+        predictions = shift_logits.argmax(dim=-1)
+
+        predictions = predictions.view(-1)
+        shift_labels = shift_labels.view(-1)
+        shift_loss_mask = shift_loss_mask.view(-1)
+
+        correct = (predictions == shift_labels) & (shift_loss_mask == 1)
+        accuracy = correct.sum().float() / shift_loss_mask.sum()
+
+        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask, predictions
+        torch.cuda.empty_cache()
+
+        return accuracy.item()
+
+
     def configure_optimizers(self):
         return torch.optim.AdamW(self.model.trainable_parameters(), lr=self.lr)
+
+    def on_before_backward(self, loss: torch.Tensor):
+        torch.nn.utils.clip_grad_norm_(self.model.trainable_parameters(), self.gradient_clip_val)
