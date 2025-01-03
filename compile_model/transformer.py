@@ -12,7 +12,6 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([
             TransformerDecoderLayer(model_dim, num_heads, ff_dim, key_size) for _ in range(num_layers)
         ])
-        self.fc = nn.Linear(model_dim, num_classes)
         self.residual_stream = None
         self.current_layer = None
 
@@ -22,7 +21,7 @@ class Transformer(nn.Module):
         for i, layer in enumerate(self.layers):
             x = layer(x)
 
-        return self.fc(x)
+        return x
 
     def embed_tokens(self, x):
         positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)

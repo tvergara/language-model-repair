@@ -7,9 +7,9 @@ import os
 load_dotenv()
 
 def load_model(directory=os.getenv('STORAGE_DIR'), filename=os.getenv('COMPILED_MODEL')):
-    model = load_jax_model(directory, filename)
-    decoder = build_decoder(model.residual_labels)
-    model, tokenizer = jax_to_torch(model)
+    jax_model = load_jax_model(directory, filename)
+    decoder = build_decoder(jax_model.residual_labels)
+    model, tokenizer = jax_to_torch(jax_model)
 
     return model, tokenizer, decoder
 
