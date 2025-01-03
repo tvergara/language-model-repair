@@ -22,6 +22,7 @@ def compiled_model():
     return model
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("a, b, expected", [
     (['8', '8'], ['3', '4'], [1, 2, 2]),
     (['8'], ['3'], [1, 1]),
