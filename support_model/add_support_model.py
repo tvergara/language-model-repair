@@ -1,5 +1,13 @@
 import torch
+import os
+import pickle
+import uuid
+
 from support_model.self_attention_module import SelfAttentionModule
+from dotenv import load_dotenv
+
+load_dotenv()
+CACHE_DIR = os.path.expanduser(os.getenv('CACHE_DIR'))
 
 class AddSupportModel:
     def __init__(
@@ -100,4 +108,21 @@ class AddSupportModel:
                 break
 
         return generated
+
+    def save(self):
+        unique_id = str(uuid.uuid4())
+        save_path = os.path.join(CACHE_DIR, f"cross_attention_{unique_id}.pkl")
+        with open(save_path, "wb") as f:
+            pickle.dump(self.cross_attention_layers, f)
+        return unique_id
+
+    def load(self, unique_id):
+        load_path = os.path.join(CACHE_DIR, f"cross_attention_{unique_id}.pkl")
+        if not os.path.exists(load_path):
+            raise FileNotFoundError(f"No saved cross-attention layers found with ID {unique_id}")
+        with open(load_path, "rb") as f:
+            saved_states = pickle.load(f)
+        for layer, saved_layer in zip(self.cross_attention_layers, saved_states):
+            layer.load_state_dict(saved_layer.state_dict())
+
 
