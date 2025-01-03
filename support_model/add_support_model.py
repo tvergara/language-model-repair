@@ -15,41 +15,60 @@ class AddSupportModel:
         main_model,
         support_model,
         tokenization_translator,
+        decoder,
         communicate_every_x_layers=3,
-        attention_heads=3,
-        key_size=20
+        pad_communication=0,
+        attention_heads=8,
+        key_size=60,
+        read_from_support=True,
+        write_to_support=False
     ):
         self.main_model = main_model
         self.support_model = support_model
         self.tokenization_translator = tokenization_translator
+        self.decoder = decoder
         combined_hidden_size = main_model.config.hidden_size + support_model.model_dim
+        n_cross_attns = len(self.layers()) - pad_communication
         self.cross_attention_layers = [
             SelfAttentionModule(combined_hidden_size, attention_heads, key_size)
-            for _ in range(len(self.layers()))
+            for _ in range(n_cross_attns)
         ]
 
         for i, layer in enumerate(self.layers()):
+            cross_attn_number = i - pad_communication
+            if cross_attn_number < 0 or cross_attn_number >= n_cross_attns:
+                continue
+
             original_forward = layer.forward
 
             def modified_forward(
                 *args,
                 original_forward=original_forward,
                 support_model=support_model,
-                attn=self.cross_attention_layers[i],
+                attn=self.cross_attention_layers[cross_attn_number],
                 **kwargs
             ):
                 output = original_forward(*args, **kwargs)
                 for _ in range(communicate_every_x_layers):
                     support_output = support_model.forward_one_layer()
+                    if not read_from_support:
+                        support_output = torch.zeros_like(support_output)
 
                 tensor_output, *rest = output
                 support_output = support_output.to(tensor_output.dtype)
+
+                bos_support_output, support_output = torch.split(
+                    support_output, [1, support_output.size(-2) - 1], dim=-2
+                )
                 concat_output = torch.cat((tensor_output, support_output), dim=-1)
                 modified_output = attn(concat_output)
 
                 main_model_output, support_model_output = torch.split(
                     modified_output, [tensor_output.size(-1), support_output.size(-1)], dim=-1
                 )
+
+                if write_to_support:
+                    support_model.residual_stream = support_model_output
 
                 return main_model_output, *rest
 
