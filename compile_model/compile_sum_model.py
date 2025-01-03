@@ -11,7 +11,7 @@ import os
 
 load_dotenv()
 MAX_DIGITS = 4
-MAX_LENGTH = 64
+MAX_LENGTH = 70
 BOS = 'bos'
 PAD = 'pad'
 
@@ -102,17 +102,18 @@ def percolate_carries(digit_sums):
     carry_current = ZERO_SOP
     final_digits = []
     for d in range(MAX_DIGITS):
-        sum_with_carry = (digit_sums[d] + carry_current).named(f"digit_{d}_sum_with_carry")
-
         final_digit_d = rasp.SequenceMap(
-            lambda val, i: val % 10,
-            sum_with_carry, rasp.indices
+            lambda l, c: (l + c) % 10,
+            digit_sums[d],
+            carry_current
         ).named(f"final_{d}_digit")
 
         next_carry = rasp.SequenceMap(
-            lambda val, i: val // 10,
-            sum_with_carry, rasp.indices
+            lambda l, c: (l + c) // 10,
+            digit_sums[d],
+            carry_current
         ).named(f"next_carry_{d}_digit")
+
 
         final_digits.append(final_digit_d)
         carry_current = next_carry
@@ -154,7 +155,7 @@ def assign_location_to_each_digit(final_digits, num_digits, equals_pos):
         digit_in_correct_place = (final_digits[d] * tmp_mask).named(f"digit_{d}_correct_place")
         maxed_sum = rasp.SequenceMap(lambda x, y: 0 if x + y >= 10 else x + y, final_result, digit_in_correct_place)
         final_result = maxed_sum.named(f"tmp_result_{d}_digit")
-    return final_result
+    return final_result.named('final_result')
 
 def save_model(model, location=os.getenv('STORAGE_DIR'), filename='sum-model.dill'):
     filepath = location + '/' + filename
@@ -174,7 +175,7 @@ if __name__ == '__main__':
     expression(['8', '8', '+', '3', '4', '=', '1', '2'])
     model = compile_operation(expression)
     param_count = sum(x.size for x in jax.tree_leaves(model.params))
+    model.apply([BOS, '2', '+', '2', '=', '1', '2']).decoded
     result = model.apply([BOS, '8', '8', '+', '3', '4', '=', '1', '2']).decoded
     print('the result of adding 88 + 34 is', result[-3:])
     save_model(model)
-
