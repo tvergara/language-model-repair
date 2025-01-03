@@ -9,14 +9,14 @@ sys.path.append(os.path.join(script_dir, "memit"))
 from .memit.memit import apply_memit_to_model, MEMITHyperParams
 from .memit.baselines.ft import apply_ft_to_model, FTHyperParams
 
-def memit(model, tokenizer, data):
+def memit(model, tokenizer, data, unsupervised_data):
     with contextlib.redirect_stdout(open(os.devnull, 'w')):
         return apply_memit_to_model(
             model,
             tokenizer,
             build_change_requests(data),
             get_hparams_memit(model)
-        )
+        )[0]
 
 def finetuning(model, tokenizer, data):
     with contextlib.redirect_stdout(open(os.devnull, 'w')):
@@ -25,7 +25,7 @@ def finetuning(model, tokenizer, data):
             tokenizer,
             build_change_requests(data),
             get_hparams_ft(model)
-        )
+        )[0]
 
 def build_change_requests(data):
     requests = []

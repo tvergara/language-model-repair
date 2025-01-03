@@ -9,7 +9,7 @@ def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data):
     compiled_model, compiled_tokenizer, decoder = load_model()
     important_tokens = [str(i) for i in range(10)] + ['+', '=']
     translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
-    wrapped_model = AddSupportModel(model, compiled_model, translator)
+    wrapped_model = AddSupportModel(model, compiled_model, translator, decoder)
     wrapped_model.train_only_cross_attention()
     train(wrapped_model, tokenizer, data, unsupervised_data, natural_data, original_model=model_copy)
 
