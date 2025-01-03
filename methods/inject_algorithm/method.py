@@ -4,13 +4,28 @@ from support_model.add_support_model import AddSupportModel
 from lightning_trainer.train import train
 import copy
 
-def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data):
+def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data, params=None):
     model_copy = copy.deepcopy(model)
     compiled_model, compiled_tokenizer, decoder = load_model()
     important_tokens = [str(i) for i in range(10)] + ['+', '=']
     translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
-    wrapped_model = AddSupportModel(model, compiled_model, translator, decoder)
+    wrapped_model = AddSupportModel(
+        model,
+        compiled_model,
+        translator,
+        decoder,
+        read_from_support=params.read_from_support,
+        write_to_support=params.write_to_support,
+    )
     wrapped_model.train_only_cross_attention()
-    train(wrapped_model, tokenizer, data, unsupervised_data, natural_data, original_model=model_copy)
+    train(
+        wrapped_model,
+        tokenizer,
+        data,
+        unsupervised_data,
+        natural_data,
+        original_model=model_copy,
+        params=params
+    )
 
     return wrapped_model

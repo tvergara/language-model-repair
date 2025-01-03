@@ -18,7 +18,8 @@ def train(
     data,
     unsupervised_data,
     natural_data,
-    original_model=None
+    original_model=None,
+    params=None
 ):
     logger = CometLogger(
         api_key= os.getenv('COMET_API_KEY'),
@@ -27,37 +28,32 @@ def train(
     )
 
     first_gpu = 'cuda:0'
-    batch_size = 16
-    max_sequence_length = 70
-
-    hyperparams_dict = {
-        'batch_size': batch_size,
-        'max_sequence_length': max_sequence_length,
-    }
 
     lightning_model = Finetuner(
         model,
         original_model,
         tokenizer=tokenizer,
-        hyperparams_dict=hyperparams_dict
+        lr=params.lr,
+        natural_data_loss=params.natural_data_loss,
+        hyperparams_dict=vars(params)
     )
     data_loader, val_dataloader = prepare_data_loader(
         data,
         tokenizer,
         max_length=MAX_LENGTH_INT_DATASET,
-        batch_size=batch_size
+        batch_size=params.batch_size
     )
     natural_data_loader, natural_val_dataloader = prepare_data_loader(
         natural_data,
         tokenizer,
-        max_length=max_sequence_length,
-        batch_size=batch_size
+        max_length=params.max_sequence_length,
+        batch_size=params.batch_size
     )
     unsupervised_data_loader = prepare_unsupervised_data_loader(
         unsupervised_data,
         tokenizer,
-        max_length=max_sequence_length,
-        batch_size=batch_size
+        max_length=params.max_sequence_length,
+        batch_size=params.batch_size
     )
     combined_dataloaders = (data_loader, unsupervised_data_loader, natural_data_loader)
     combined_eval_dataloaders = (val_dataloader, natural_val_dataloader)
