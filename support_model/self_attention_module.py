@@ -12,7 +12,7 @@ class SelfAttentionModule(nn.Module):
         self.v_proj = nn.Linear(residual_stream_dim, num_heads * key_size)
         self.o_proj = nn.Linear(num_heads * key_size, residual_stream_dim)
         nn.init.constant_(self.o_proj.weight, 0)
-        nn.init.constant_(self.v_proj.bias, 0)
+        nn.init.constant_(self.o_proj.bias, 0)
 
     def forward(self, x):
         batch_size, seq_len, _ = x.size()
