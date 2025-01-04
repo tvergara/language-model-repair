@@ -4,6 +4,7 @@ import pickle
 import uuid
 
 from support_model.self_attention_module import SelfAttentionModule
+from support_model.cross_attention_module import CrossAttentionModule
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -27,10 +28,9 @@ class AddSupportModel:
         self.support_model = support_model
         self.tokenization_translator = tokenization_translator
         self.decoder = decoder
-        combined_hidden_size = main_model.config.hidden_size + support_model.model_dim
         n_cross_attns = len(self.layers()) - pad_communication
         self.cross_attention_layers = [
-            SelfAttentionModule(combined_hidden_size, attention_heads, key_size)
+            CrossAttentionModule(support_model.model_dim, main_model.config.hidden_size, attention_heads, key_size)
             for _ in range(n_cross_attns)
         ]
 
@@ -60,15 +60,9 @@ class AddSupportModel:
                 bos_support_output, support_output = torch.split(
                     support_output, [1, support_output.size(-2) - 1], dim=-2
                 )
-                concat_output = torch.cat((tensor_output, support_output), dim=-1)
-                modified_output = attn(concat_output)
 
-                main_model_output, support_model_output = torch.split(
-                    modified_output, [tensor_output.size(-1), support_output.size(-1)], dim=-1
-                )
-
-                if write_to_support:
-                    support_model.residual_stream = support_model_output
+                cross_attention_output = attn(support_output, tensor_output)
+                main_model_output = tensor_output + cross_attention_output
 
                 return main_model_output, *rest
 

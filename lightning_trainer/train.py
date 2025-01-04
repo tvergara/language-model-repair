@@ -58,22 +58,14 @@ def train(
     combined_dataloaders = (data_loader, unsupervised_data_loader, natural_data_loader)
     combined_eval_dataloaders = (val_dataloader, natural_val_dataloader)
     model.to(first_gpu)
-    early_stopping = EarlyStopping(
-        monitor="natural_acc/dataloader_idx_1",
-        patience=2,
-        mode="max",
-        stopping_threshold=0.9
-    )
-
     trainer = L.Trainer(
         logger=logger,
         accelerator="gpu",
         devices=[0],
         enable_checkpointing=False,
         max_epochs=1,
-        limit_train_batches=7000,
+        limit_train_batches=params.train_batches,
         val_check_interval=100,
-        # callbacks=[early_stopping]
     )
     trainer.fit(
         lightning_model,

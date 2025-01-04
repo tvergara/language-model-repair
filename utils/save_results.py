@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def save_results(results: dict, prefix: str) -> None:
+def save_results(results: dict, prefix='experiments') -> None:
     """
     Save the results dictionary into a CSV file named 'prefix_{timestamp}.csv'.
 
