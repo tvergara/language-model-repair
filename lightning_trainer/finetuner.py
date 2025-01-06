@@ -77,11 +77,12 @@ class Finetuner(L.LightningModule):
         unsupervised_loss = self.unsupervised_loss(unsupervised_batch)
         self.log("unsupervised_loss", unsupervised_loss, on_step=True, on_epoch=False, prog_bar=True)
 
+        natural_data_loss = 0
         if self.natural_data_loss:
             natural_data_loss = self.supervised_loss(natural_data_batch)
             self.log("natural_data_loss", natural_data_loss, on_step=True, on_epoch=False, prog_bar=True)
 
-        total_loss = supervised_loss + unsupervised_loss #+ natural_data_loss
+        total_loss = supervised_loss + unsupervised_loss + natural_data_loss
 
         self.log("loss", total_loss, on_step=True, on_epoch=False, prog_bar=True)
         return total_loss

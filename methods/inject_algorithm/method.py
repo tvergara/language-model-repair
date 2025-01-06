@@ -16,6 +16,11 @@ def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data, pa
         decoder,
         read_from_support=params.read_from_support,
         write_to_support=params.write_to_support,
+        tanh_in_write=params.tanh_in_write,
+        communicate_every_x_layers=params.cross_attn_every_x_layers,
+        key_size=params.key_size,
+        attention_heads=params.attention_heads,
+        rescaling_factor_write=params.rescaling_factor_write,
     )
     wrapped_model.train_only_cross_attention()
     train(
