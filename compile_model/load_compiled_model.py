@@ -45,9 +45,12 @@ def build_decoder(residual_space):
     for dim_str in residual_space:
         parts = dim_str.split(":", 1)
         if len(parts) == 2:
-            name, value = parts[0].strip(), parts[1].strip()
-            if name and value:
-                parsed_dims.append((name, value))
+            name, value = parts[0].strip(), parts[1]
+            parsed_dims.append((name, value))
+        else:
+            name, value = dim_str, True
+            parsed_dims.append((name, value))
+
 
     def decoder(pred):
         name_to_best = {}
