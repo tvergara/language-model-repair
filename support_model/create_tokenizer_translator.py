@@ -20,7 +20,7 @@ def create_translator(entry_tokenizer, output_tokenizer, important_tokens, varia
 
     def translator(tokens):
         translated_tokens = torch.tensor(
-            [mapping.get(token.item(), output_tokenizer.vocab['pad']) for token in tokens.flatten()]
+            [mapping.get(token.item(), output_tokenizer.vocab['+']) for token in tokens.flatten()]
         ).reshape(tokens.shape).to(tokens.device)
 
         bos_token = output_tokenizer.vocab['bos']
