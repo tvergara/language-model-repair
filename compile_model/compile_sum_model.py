@@ -49,11 +49,11 @@ def sum_by_digits():
     [2, 12, 15]
     """
     numbers = rasp.Map(lambda x: int(x) if x.isdigit() else 0, rasp.tokens).named('numbers')
-    shifted_tokens = zero_shift_by(1, rasp.tokens)
+    shifted_tokens = shift_by(1, rasp.tokens)
     number_just_ended = rasp.SequenceMap(lambda x, y: is_digit(x) and not is_digit(y), shifted_tokens, rasp.tokens)
     ended_numbers = rasp.Select(number_just_ended, rasp.Map(lambda x: True, rasp.tokens), rasp.Comparison.EQ)
-    second_number_mask = rasp.SelectorWidth(ended_numbers)
-    second_number = rasp.SequenceMap(lambda x, mask: int(x) if x.isdigit() and mask > 0 else 0, rasp.tokens, second_number_mask)
+    cumulative_ended_numbers = rasp.SelectorWidth(ended_numbers)
+    second_number = rasp.SequenceMap(lambda x, mask: int(x) if x.isdigit() and mask > 0 else 0, rasp.tokens, cumulative_ended_numbers)
 
 
     shifted_first_numbers = [numbers]
@@ -71,10 +71,9 @@ def sum_by_digits():
     number_id = rasp.SelectorWidth(total_numbers_counter)
     number_id_clean = rasp.SequenceMap(lambda nid, correct: nid if correct else 0, number_id, number_just_ended)
 
-    is_equal = rasp.Map(lambda x: int(x == '='), rasp.tokens)
-    is_after_equal = rasp.SelectorWidth(rasp.Select(is_equal, rasp.Map(lambda x: 1, rasp.tokens), rasp.Comparison.EQ))
-    grab_numbers = rasp.Select(number_id_clean, is_after_equal, lambda number, equal: number == equal)
-    grab_numbers_2 = rasp.Select(number_id_clean, is_after_equal * 2, lambda number, equal: number == equal)
+    after_second_number = rasp.Map(lambda x: 1 if x > 1 else 0, cumulative_ended_numbers)
+    grab_numbers = rasp.Select(number_id_clean, after_second_number, lambda number, equal: number == equal)
+    grab_numbers_2 = rasp.Select(number_id_clean, after_second_number * 2, lambda number, equal: number == equal)
 
     digit_sums = []
     for i in range(1, MAX_DIGITS + 1):
