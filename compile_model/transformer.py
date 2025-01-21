@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from compile_model.utils import convert_to_torch
 
 class Transformer(nn.Module):
-    def __init__(self, input_dim, model_dim, num_heads, num_layers, ff_dim, seq_len, num_classes, key_size):
+    def __init__(self, input_dim, model_dim, num_heads, num_layers, ff_dim, seq_len, num_classes, key_size, dim_sizes):
         super(Transformer, self).__init__()
         self.model_dim = model_dim
         self.embedding = nn.Embedding(input_dim, model_dim)
@@ -13,7 +13,10 @@ class Transformer(nn.Module):
             TransformerDecoderLayer(model_dim, num_heads, ff_dim, key_size) for _ in range(num_layers)
         ])
         self.residual_stream = None
+        self.clean_residual_stream = None
         self.current_layer = None
+        self.residual_stream_residue = 0
+        self.dim_sizes = dim_sizes
 
     def forward(self, x):
         positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)
@@ -27,14 +30,51 @@ class Transformer(nn.Module):
         positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)
         self.residual_stream = self.embedding(x) + self.positional_encoding(positions)
         self.current_layer = 0
+        self.residual_stream_residue = 0
         return self.residual_stream
+
+    def embed_ground_truth(self, x):
+        positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)
+        self.clean_residual_stream = self.embedding(x) + self.positional_encoding(positions)
 
     def forward_one_layer(self):
         if self.current_layer >= len(self.layers):
             return self.residual_stream
         self.residual_stream = self.layers[self.current_layer](self.residual_stream)
+        # self.clean_residual_stream = self.layers[self.current_layer](self.clean_residual_stream)
         self.current_layer += 1
         return self.residual_stream
+
+    def add_residue(self):
+        diff = self.clean_residual_stream[:, -1] - self.residual_stream[:, -1]
+
+        start_idx = 0
+        for size in self.dim_sizes:
+            end_idx = start_idx + size
+            if size < 50:
+                chunk_diff = diff[:, start_idx:end_idx]
+                self.residual_stream_residue += torch.norm(chunk_diff)
+
+                start_idx = end_idx
+
+    def normalize_residual_stream(self):
+        chunks_clean = torch.split(self.clean_residual_stream, self.dim_sizes, dim=-1)
+        chunks_resid = torch.split(self.residual_stream, self.dim_sizes, dim=-1)
+
+        updated_chunks = []
+        for chunk_clean, chunk_resid in zip(chunks_clean, chunks_resid):
+            clean_sum = chunk_clean.sum(dim=-1, keepdim=True)
+            resid_sum = chunk_resid.sum(dim=-1, keepdim=True)
+
+            scale = clean_sum / (resid_sum + 1e-8)
+            scale = torch.where(clean_sum == 0, torch.ones_like(scale), scale)
+
+            chunk_resid = chunk_resid * scale
+            updated_chunks.append(chunk_resid)
+
+        self.residual_stream = torch.cat(updated_chunks, dim=-1)
+
+
 
     def set_weights(self, compiled_model_params):
         self.embedding.weight.data.copy_(convert_to_torch(compiled_model_params['token_embed']['embeddings']))

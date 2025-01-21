@@ -11,7 +11,8 @@ class Finetuner(L.LightningModule):
         lr=1e-6,
         gradient_clip_val=100.0,
         hyperparams_dict={},
-        natural_data_loss=False
+        natural_data_loss=False,
+        residue_loss=False,
     ):
         super().__init__()
 
@@ -24,13 +25,14 @@ class Finetuner(L.LightningModule):
         self.gradient_clip_val = gradient_clip_val
         self.tokenizer = tokenizer
         self.natural_data_loss = natural_data_loss
+        self.residue_loss = residue_loss
 
 
     def supervised_loss(self, batch):
         input_ids = batch["input_ids"].to(self.model.device)
         loss_mask = batch["loss_mask"].to(self.model.device)
 
-        outputs = self.model(input_ids=input_ids)
+        outputs = self.model(input_ids=input_ids, ground_truth=input_ids)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()
@@ -48,7 +50,32 @@ class Finetuner(L.LightningModule):
         del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask
         torch.cuda.empty_cache()
 
-        return loss
+        return loss, self.model.support_model.residual_stream_residue
+
+    def natural_loss(self, batch):
+        input_ids = batch["input_ids"].to(self.model.device)
+        loss_mask = batch["loss_mask"].to(self.model.device)
+        ground_truth = batch["ground_truth"].to(self.model.device)
+
+        outputs = self.model(input_ids=input_ids, ground_truth=ground_truth)
+        logits = outputs.logits
+
+        shift_logits = logits[:, :-1, :].contiguous()
+        shift_labels = input_ids[:, 1:].contiguous()
+        shift_loss_mask = loss_mask[:, :-1].contiguous()
+
+        shift_logits = shift_logits.view(-1, shift_logits.size(-1))
+        shift_labels = shift_labels.view(-1)
+        shift_loss_mask = shift_loss_mask.view(-1)
+
+        loss = F.cross_entropy(shift_logits, shift_labels, reduction='none')
+        loss = loss * shift_loss_mask
+        loss = loss.sum() / shift_loss_mask.sum()
+
+        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask
+        torch.cuda.empty_cache()
+
+        return loss, self.model.support_model.residual_stream_residue
 
     def unsupervised_loss(self, batch):
         input_ids = batch["input_ids"].to(self.model.device)
@@ -71,7 +98,7 @@ class Finetuner(L.LightningModule):
     def training_step(self, batch, batch_idx):
         supervised_batch, unsupervised_batch, natural_data_batch = batch
 
-        supervised_loss = self.supervised_loss(supervised_batch)
+        supervised_loss, residue_loss = self.supervised_loss(supervised_batch)
         self.log("supervised_loss", supervised_loss, on_step=True, on_epoch=False, prog_bar=True)
 
         unsupervised_loss = self.unsupervised_loss(unsupervised_batch)
@@ -79,10 +106,17 @@ class Finetuner(L.LightningModule):
 
         natural_data_loss = 0
         if self.natural_data_loss:
-            natural_data_loss = self.supervised_loss(natural_data_batch)
+            natural_data_loss, natural_residue_loss = self.natural_loss(natural_data_batch)
+            print('naruak_residue', natural_residue_loss)
+            residue_loss += natural_residue_loss
             self.log("natural_data_loss", natural_data_loss, on_step=True, on_epoch=False, prog_bar=True)
 
-        total_loss = supervised_loss + unsupervised_loss + natural_data_loss
+        if not self.residue_loss:
+            residue_loss = 0
+        else:
+            self.log("residue_loss", residue_loss, on_step=True, on_epoch=False, prog_bar=True)
+
+        total_loss = supervised_loss + unsupervised_loss + natural_data_loss + residue_loss
 
         self.log("loss", total_loss, on_step=True, on_epoch=False, prog_bar=True)
         return total_loss
@@ -98,7 +132,7 @@ class Finetuner(L.LightningModule):
         input_ids = batch["input_ids"].to(self.model.device)
         loss_mask = batch["loss_mask"].to(self.model.device)
 
-        outputs = self.model(input_ids=input_ids)
+        outputs = self.model(input_ids=input_ids, ground_truth=input_ids)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()

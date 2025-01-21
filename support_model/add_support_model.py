@@ -37,22 +37,52 @@ class AddSupportModel:
         ]
         self.write_layers = [
             CrossAttentionModule(main_model.config.hidden_size, support_model.model_dim, attention_heads, key_size)
-            for _ in range(n_cross_attns)
+            for _ in range(pad_communication)
         ]
 
         for i, layer in enumerate(self.layers()):
-            cross_attn_number = i - pad_communication
-            if cross_attn_number < 0 or cross_attn_number >= n_cross_attns:
-                continue
-
             original_forward = layer.forward
 
-            def modified_forward(
+            if i < pad_communication:
+                def write_forward(
+                    *args,
+                    original_forward=original_forward,
+                    support_model=support_model,
+                    attn=self.write_layers[i],
+                    last_layer=i==pad_communication-1,
+                    **kwargs
+                ):
+                    output = original_forward(*args, **kwargs)
+                    tensor_output, *rest = output
+                    support_output = support_model.residual_stream
+                    support_output = support_output.to(tensor_output.dtype)
+
+                    bos_support_output, support_output = torch.split(
+                        support_output, [1, support_output.size(-2) - 1], dim=-2
+                    )
+
+                    write_output = attn(tensor_output, support_output)
+                    write_output /= rescaling_factor_write
+                    if tanh_in_write:
+                        write_output = torch.tanh(write_output)
+                    support_model.residual_stream[:, 1:, :] += write_output
+                    if last_layer:
+                        support_model.add_residue()
+
+                    return output
+                layer.forward = write_forward
+                continue
+
+            cross_attn_number = i - pad_communication
+            if cross_attn_number >= n_cross_attns:
+                continue
+
+
+            def read_forward(
                 *args,
                 original_forward=original_forward,
                 support_model=support_model,
                 read_attn=self.read_layers[cross_attn_number],
-                write_attn=self.write_layers[cross_attn_number],
                 **kwargs
             ):
                 output = original_forward(*args, **kwargs)
@@ -71,16 +101,9 @@ class AddSupportModel:
                 read_output = read_attn(support_output, tensor_output)
                 main_model_output = tensor_output + read_output
 
-                if write_to_support:
-                    write_output = write_attn(tensor_output, support_output)
-                    write_output /= rescaling_factor_write
-                    if tanh_in_write:
-                        write_output = torch.tanh(write_output)
-                    support_model.residual_stream[:, 1:, :] += write_output
-
                 return main_model_output, *rest
 
-            layer.forward = modified_forward
+            layer.forward = read_forward
 
     def __getattr__(self, name):
         return getattr(self.main_model, name)
@@ -88,6 +111,10 @@ class AddSupportModel:
     def __call__(self, *args, **kwargs):
         translated_tokens = self.tokenization_translator(kwargs['input_ids'])
         self.support_model.embed_tokens(translated_tokens)
+        if 'ground_truth' in kwargs:
+            translated_tokens = self.tokenization_translator(kwargs['ground_truth'])
+            self.support_model.embed_ground_truth(translated_tokens)
+            del kwargs['ground_truth']
         output = self.main_model(*args, **kwargs)
         return output
 

@@ -73,9 +73,3 @@ def get_mawps(max_int=400, test_size=0.2, max_test_size=4000):
 
 if __name__ == '__main__':
     train, test = get_mawps()
-
-    m = 0
-    for example in train:
-        m = max(m, len(example['question']))
-
-    m

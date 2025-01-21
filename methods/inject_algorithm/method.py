@@ -4,7 +4,15 @@ from support_model.add_support_model import AddSupportModel
 from lightning_trainer.train import train
 import copy
 
-def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data, params=None):
+def inject_algorithm(
+    model,
+    tokenizer,
+    data,
+    unsupervised_data,
+    natural_data,
+    params=None,
+    train_enabled=True
+):
     model_copy = copy.deepcopy(model)
     compiled_model, compiled_tokenizer, decoder = load_model()
     important_tokens = [str(i) for i in range(10)] + ['+', '=']
@@ -21,16 +29,18 @@ def inject_algorithm(model, tokenizer, data, unsupervised_data, natural_data, pa
         key_size=params.key_size,
         attention_heads=params.attention_heads,
         rescaling_factor_write=params.rescaling_factor_write,
+        pad_communication=params.pad_communication,
     )
     wrapped_model.train_only_cross_attention()
-    train(
-        wrapped_model,
-        tokenizer,
-        data,
-        unsupervised_data,
-        natural_data,
-        original_model=model_copy,
-        params=params
-    )
+    if train_enabled:
+        train(
+            wrapped_model,
+            tokenizer,
+            data,
+            unsupervised_data,
+            natural_data,
+            original_model=model_copy,
+            params=params
+        )
 
     return wrapped_model
