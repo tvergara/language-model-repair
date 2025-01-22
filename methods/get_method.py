@@ -1,7 +1,8 @@
-from .memit.methods import memit, finetuning
+from .memit.methods import memit
 from .in_context_learning import in_context_learning
 from .inject_algorithm.method import inject_algorithm
 from .distil_algorithm.method import distil_algorithm
+from .finetuning.method import finetuning
 
 def get_method(method):
     if method == 'NO-METHOD':

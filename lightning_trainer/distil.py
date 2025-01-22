@@ -10,7 +10,6 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from .distiler import Distiler
 from .prepare_data_loader import prepare_data_loader
 from .prepare_unsupervised_data_loader import prepare_unsupervised_data_loader
-from .increase_learning_layer_callback import IncreaseLearningLayerCallback
 
 MAX_LENGTH_INT_DATASET = 16
 MAX_LENGTH_UNSUPERVISED = 70
@@ -76,3 +75,5 @@ def distil(
         lightning_model,
         train_dataloaders=combined_dataloaders,
     )
+
+    return lightning_model.adapter

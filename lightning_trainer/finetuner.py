@@ -13,11 +13,15 @@ class Finetuner(L.LightningModule):
         hyperparams_dict={},
         natural_data_loss=False,
         residue_loss=False,
+        compiled_model_loss=False,
+        compiled_model=None,
+        translator=None,
+        adapter=None,
     ):
         super().__init__()
 
         self.hyperparams_dict = hyperparams_dict
-        self.save_hyperparameters(ignore=['original_model', 'model', 'tokenizer'])
+        self.save_hyperparameters(ignore=['original_model', 'model', 'tokenizer', 'adapter', 'compiled_model'])
 
         self.model = model
         self.original_model = original_model
@@ -26,13 +30,16 @@ class Finetuner(L.LightningModule):
         self.tokenizer = tokenizer
         self.natural_data_loss = natural_data_loss
         self.residue_loss = residue_loss
-
+        self.compiled_model_loss = compiled_model_loss
+        self.compiled_model = compiled_model
+        self.translator = translator
+        self.adapter = adapter
 
     def supervised_loss(self, batch):
         input_ids = batch["input_ids"].to(self.model.device)
         loss_mask = batch["loss_mask"].to(self.model.device)
 
-        outputs = self.model(input_ids=input_ids, ground_truth=input_ids)
+        outputs = self.model(input_ids=input_ids, output_hidden_states=self.compiled_model_loss)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()
@@ -47,17 +54,16 @@ class Finetuner(L.LightningModule):
         loss = loss * shift_loss_mask
         loss = loss.sum() / shift_loss_mask.sum()
 
-        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask
-        torch.cuda.empty_cache()
+        if self.compiled_model_loss:
+            return loss, self.algorithm_alignment_loss(batch, outputs)
 
-        return loss, self.model.support_model.residual_stream_residue
+        return loss, 0
 
     def natural_loss(self, batch):
         input_ids = batch["input_ids"].to(self.model.device)
         loss_mask = batch["loss_mask"].to(self.model.device)
-        ground_truth = batch["ground_truth"].to(self.model.device)
 
-        outputs = self.model(input_ids=input_ids, ground_truth=ground_truth)
+        outputs = self.model(input_ids=input_ids, output_hidden_states=self.compiled_model_loss)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()
@@ -72,10 +78,10 @@ class Finetuner(L.LightningModule):
         loss = loss * shift_loss_mask
         loss = loss.sum() / shift_loss_mask.sum()
 
-        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask
-        torch.cuda.empty_cache()
+        if self.compiled_model_loss:
+            return loss, self.algorithm_alignment_loss(batch, outputs)
 
-        return loss, self.model.support_model.residual_stream_residue
+        return loss, 0
 
     def unsupervised_loss(self, batch):
         input_ids = batch["input_ids"].to(self.model.device)
@@ -98,25 +104,49 @@ class Finetuner(L.LightningModule):
     def training_step(self, batch, batch_idx):
         supervised_batch, unsupervised_batch, natural_data_batch = batch
 
-        supervised_loss, residue_loss = self.supervised_loss(supervised_batch)
+        supervised_loss, supervised_alignment = self.supervised_loss(supervised_batch)
         self.log("supervised_loss", supervised_loss, on_step=True, on_epoch=False, prog_bar=True)
 
         unsupervised_loss = self.unsupervised_loss(unsupervised_batch)
-        self.log("unsupervised_loss", unsupervised_loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log(
+            "unsupervised_loss",
+            unsupervised_loss,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=True
+        )
 
         natural_data_loss = 0
         if self.natural_data_loss:
-            natural_data_loss, natural_residue_loss = self.natural_loss(natural_data_batch)
-            print('naruak_residue', natural_residue_loss)
-            residue_loss += natural_residue_loss
-            self.log("natural_data_loss", natural_data_loss, on_step=True, on_epoch=False, prog_bar=True)
+            natural_data_loss, natural_alignment = self.natural_loss(natural_data_batch)
+            self.log(
+                "natural_data_loss",
+                natural_data_loss,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=True
+            )
 
-        if not self.residue_loss:
-            residue_loss = 0
-        else:
-            self.log("residue_loss", residue_loss, on_step=True, on_epoch=False, prog_bar=True)
+        if self.compiled_model_loss:
+            self.log(
+                "natural_alignment_loss",
+                natural_alignment,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=True
+            )
+            self.log(
+                "supervised_alignment_loss",
+                supervised_alignment,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=True
+            )
 
-        total_loss = supervised_loss + unsupervised_loss + natural_data_loss + residue_loss
+        total_loss = (
+            supervised_loss + unsupervised_loss + natural_data_loss +
+            supervised_alignment + natural_alignment
+        )
 
         self.log("loss", total_loss, on_step=True, on_epoch=False, prog_bar=True)
         return total_loss
@@ -132,7 +162,7 @@ class Finetuner(L.LightningModule):
         input_ids = batch["input_ids"].to(self.model.device)
         loss_mask = batch["loss_mask"].to(self.model.device)
 
-        outputs = self.model(input_ids=input_ids, ground_truth=input_ids)
+        outputs = self.model(input_ids=input_ids)
         logits = outputs.logits
 
         shift_logits = logits[:, :-1, :].contiguous()
@@ -148,14 +178,34 @@ class Finetuner(L.LightningModule):
         correct = (predictions == shift_labels) & (shift_loss_mask == 1)
         accuracy = correct.sum().float() / shift_loss_mask.sum()
 
-        del input_ids, loss_mask, outputs, logits, shift_logits, shift_labels, shift_loss_mask, predictions
+        del input_ids, loss_mask, outputs, logits, shift_logits
+        del shift_labels, shift_loss_mask, predictions
         torch.cuda.empty_cache()
 
         return accuracy.item()
 
+    def algorithm_alignment_loss(self, batch, outputs):
+        translated_tokens = self.translator(batch['input_ids'])
+        self.compiled_model.embed_tokens(translated_tokens)
+
+        loss = 0
+        for i in range(len(self.compiled_model.layers) + 1):
+            adaptation = self.adapter(outputs.hidden_states[i])
+
+            tensor1 = F.normalize(adaptation, p=2, dim=-1)
+            tensor2 = F.normalize(self.compiled_model.residual_stream[:, 1:], p=2, dim=-1)
+            cosine_similarity = torch.sum(tensor1 * tensor2, dim=-1)
+            cosine_distance = 1 - cosine_similarity
+            loss += cosine_distance.mean()
+            self.compiled_model.forward_one_layer()
+        return loss
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.model.trainable_parameters(), lr=self.lr)
-
-    def on_before_backward(self, loss: torch.Tensor):
-        torch.nn.utils.clip_grad_norm_(self.model.trainable_parameters(), self.gradient_clip_val)
+        if self.compiled_model_loss:
+            return torch.optim.AdamW(
+                [
+                    {"params": self.model.parameters(), "lr": self.lr},
+                    {"params": self.adapter.parameters(), "lr": self.lr},
+                ]
+            )
+        return torch.optim.AdamW(self.model.parameters(), lr=self.lr)

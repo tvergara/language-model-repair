@@ -17,7 +17,7 @@ def distil_algorithm(
     important_tokens = [str(i) for i in range(10)] + ['+', '=']
     translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
 
-    distil(
+    adapter = distil(
         model,
         compiled_model,
         tokenizer,
@@ -28,4 +28,4 @@ def distil_algorithm(
         params=params
     )
 
-    return model
+    return model, adapter

@@ -54,11 +54,13 @@ tokenizer = get_tokenizer()
 tokenizer.pad_token = tokenizer.eos_token
 method = get_method(METHOD)
 
-model = method(model, tokenizer, train_dataset, unsupervised_data, train_natural_data, params=args)
+model, adapter = method(model, tokenizer, train_dataset, unsupervised_data, train_natural_data, params=args)
 
 
 save_id = str(uuid.uuid4())
 save_path = os.path.join(CACHE_DIR, save_id)
 os.makedirs(save_path, exist_ok=True)
 model.save_pretrained(save_path)
+adapter_save_path = os.path.join(save_path, "adapter.pth")
+torch.save(adapter.state_dict(), adapter_save_path)
 print('model weights saved at', save_id)
