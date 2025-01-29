@@ -4,7 +4,19 @@ import torch.nn.functional as F
 from compile_model.utils import convert_to_torch
 
 class Transformer(nn.Module):
-    def __init__(self, input_dim, model_dim, num_heads, num_layers, ff_dim, seq_len, num_classes, key_size, dim_sizes):
+    def __init__(
+        self,
+        input_dim,
+        model_dim,
+        num_heads,
+        num_layers,
+        ff_dim,
+        seq_len,
+        num_classes,
+        key_size,
+        dim_sizes,
+        decoder,
+    ):
         super(Transformer, self).__init__()
         self.model_dim = model_dim
         self.embedding = nn.Embedding(input_dim, model_dim)
@@ -17,6 +29,7 @@ class Transformer(nn.Module):
         self.current_layer = None
         self.residual_stream_residue = 0
         self.dim_sizes = dim_sizes
+        self.decoder = decoder
 
     def forward(self, x):
         positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(x.size(0), -1)

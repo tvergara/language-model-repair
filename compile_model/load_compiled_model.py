@@ -12,7 +12,7 @@ load_dotenv()
 def load_model(directory=os.getenv('STORAGE_DIR'), filename=os.getenv('COMPILED_MODEL')):
     jax_model = load_jax_model(directory, filename)
     decoder, sizes = build_decoder(jax_model.residual_labels)
-    model, tokenizer = jax_to_torch(jax_model, sizes)
+    model, tokenizer = jax_to_torch(jax_model, sizes, decoder)
 
     return model, tokenizer, decoder
 
@@ -24,7 +24,7 @@ def load_jax_model(directory=os.getenv('STORAGE_DIR'), filename=os.getenv('COMPI
     with open(filepath, 'rb') as f:
         return dill.load(f)
 
-def jax_to_torch(compiled_model, dim_sizes):
+def jax_to_torch(compiled_model, dim_sizes, decoder):
     max_length, model_dim = compiled_model.params['pos_embed']['embeddings'].shape
     input_dim, model_dim = compiled_model.params['token_embed']['embeddings'].shape
     num_heads = compiled_model.model_config.num_heads
@@ -43,6 +43,7 @@ def jax_to_torch(compiled_model, dim_sizes):
         num_classes,
         key_size,
         dim_sizes,
+        decoder,
     )
     model.set_weights(compiled_model.params)
 
