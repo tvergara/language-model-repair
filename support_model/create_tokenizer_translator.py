@@ -1,6 +1,19 @@
 import torch
 
-def create_translator(entry_tokenizer, output_tokenizer, important_tokens, variations=None):
+IMPORTANT_TOKENS = {
+    'int-sum': [str(i) for i in range(10)],
+    'dyck': list('()[]{}'),
+}
+FILLUP_TOKEN = {
+    'int-sum': '+',
+    'dyck': ' ',
+}
+CUSTOM_MAPPING = {
+    'int-sum': {},
+    'dyck': { ':': 'compute' },
+}
+
+def create_translator(entry_tokenizer, output_tokenizer, variations=None, task='int-sum'):
     if variations is None:
         variations = [
             lambda x: x,
@@ -10,6 +23,9 @@ def create_translator(entry_tokenizer, output_tokenizer, important_tokens, varia
 
     mapping = {}
 
+    fillup_token = FILLUP_TOKEN[task]
+    important_tokens = IMPORTANT_TOKENS[task]
+    custom_mapping = CUSTOM_MAPPING[task]
     for token in important_tokens:
         for variation in variations:
             entry_ids = entry_tokenizer.encode(variation(token), add_special_tokens=False)
@@ -18,9 +34,18 @@ def create_translator(entry_tokenizer, output_tokenizer, important_tokens, varia
             if len(entry_ids) == 1 and len(output_ids) == 1:
                 mapping[entry_ids[0]] = output_ids[0].item()
 
+    for input_token, output_token in custom_mapping.items():
+        for variation in variations:
+            entry_ids = entry_tokenizer.encode(variation(input_token), add_special_tokens=False)
+            output_ids = output_tokenizer.tokenize(output_token, add_special_tokens=False)
+
+            if len(entry_ids) == 1 and len(output_ids) == 1:
+                mapping[entry_ids[0]] = output_ids[0].item()
+
+
     def translator(tokens):
         translated_tokens = torch.tensor(
-            [mapping.get(token.item(), output_tokenizer.vocab['+']) for token in tokens.flatten()]
+            [mapping.get(token.item(), output_tokenizer.vocab[fillup_token]) for token in tokens.flatten()]
         ).reshape(tokens.shape).to(tokens.device)
 
         bos_token = output_tokenizer.vocab['bos']

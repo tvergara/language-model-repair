@@ -11,7 +11,7 @@ import os
 
 load_dotenv()
 MAX_DIGITS = 3
-MAX_LENGTH = 70
+MAX_LENGTH = 16
 BOS = 'bos'
 PAD = 'pad'
 
@@ -135,7 +135,7 @@ def assign_location_to_each_digit(final_digits, num_digits):
         def target_location_func(x, y, d=d):
             location = x + y - d - 1
             if location >= MAX_LENGTH or location <= 0:
-                return 0
+                return n0
 
             return location
 
@@ -175,6 +175,17 @@ if __name__ == '__main__':
     expression = generate_sum_operation()
     model = compile_operation(expression)
     param_count = sum(x.size for x in jax.tree_leaves(model.params))
+    print(param_count)
+    len(model.residual_labels)
     result = model.apply([BOS, '8', '8', '+', '3', '4', '=', '1', '2']).decoded
     print('the result of adding 88 + 34 is', result[-3:])
     save_model(model)
+
+
+    from collections import Counter
+    labels = Counter()
+    for label in model.residual_labels:
+        if ":" in label:
+            label_name, _ = label.split(':')
+            labels[label_name] += 1
+    labels

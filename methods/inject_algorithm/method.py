@@ -11,10 +11,11 @@ def inject_algorithm(
     unsupervised_data,
     natural_data,
     params=None,
-    train_enabled=True
+    train_enabled=True,
+    compiled_model_file_name='sum-model.dill'
 ):
     model_copy = copy.deepcopy(model)
-    compiled_model, compiled_tokenizer, decoder = load_model()
+    compiled_model, compiled_tokenizer, decoder = load_model(filename=compiled_model_file_name)
     important_tokens = [str(i) for i in range(10)] + ['+', '=']
     translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
     wrapped_model = AddSupportModel(

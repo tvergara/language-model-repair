@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 URL = 'https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt'
 
-def evaluate_tiny_shakespeare(model, tokenizer, original_model, max_length=12):
+def evaluate_tiny_shakespeare(model, tokenizer, max_length=350):
     response = requests.get(URL)
     response.raise_for_status()
     data = response.text
@@ -13,7 +13,6 @@ def evaluate_tiny_shakespeare(model, tokenizer, original_model, max_length=12):
     lines = data.splitlines()[:2000]
 
     total_perplexity = 0
-    total_kl_divergence = 0
     valid_lines = 0
 
     model.eval()
@@ -48,21 +47,10 @@ def evaluate_tiny_shakespeare(model, tokenizer, original_model, max_length=12):
             perplexity = torch.exp(loss).item()
             total_perplexity += perplexity
 
-            original_outputs = original_model(input_ids=input_ids)
-            original_logits = original_outputs.logits
 
-            shifted_original_logits = original_logits[:, :-1, :]
             shifted_new_logits = shifted_logits
 
-            original_probs = F.log_softmax(shifted_original_logits, dim=-1)
             new_probs = F.softmax(shifted_new_logits, dim=-1)
-
-            kl_div = F.kl_div(
-                original_probs.reshape(-1, original_probs.size(-1)),
-                new_probs.reshape(-1, new_probs.size(-1)),
-                reduction="batchmean"
-            )
-            total_kl_divergence += kl_div.item()
 
             valid_lines += 1
 
@@ -70,7 +58,33 @@ def evaluate_tiny_shakespeare(model, tokenizer, original_model, max_length=12):
         return float('inf')
 
     avg_perplexity = total_perplexity / valid_lines
-    avg_kl_divergence = total_kl_divergence / valid_lines
 
-    return avg_perplexity, avg_kl_divergence
+    return avg_perplexity
+
+if __name__ == "__main__":
+    from utils import get_tokenizer
+    from dotenv import load_dotenv
+    import os
+    from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+    load_dotenv()
+    CACHE_DIR = os.path.expanduser(os.getenv('CACHE_DIR', "~/.cache/huggingface"))
+    save_id = '6e6efb4b-06ca-4ac6-9759-c5fd8a75d438'
+    # model_name = "gpt2-large"
+    model_name = os.path.join(CACHE_DIR, save_id)
+    
+    tokenizer = get_tokenizer('dyck')
+    # tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+    model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=CACHE_DIR)
+    
+    # GPT‑2 doesn't have a pad token by default; set it to the EOS token.
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    
+    
+    res = evaluate_tiny_shakespeare(model, tokenizer)
+    print('res', res)
 

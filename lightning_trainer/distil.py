@@ -11,9 +11,10 @@ from .distiler import Distiler
 from .prepare_data_loader import prepare_data_loader
 from .prepare_unsupervised_data_loader import prepare_unsupervised_data_loader
 
-MAX_LENGTH_INT_DATASET = 16
+MAX_LENGTH_INT_DATASET = 15
 MAX_LENGTH_UNSUPERVISED = 70
-BATCH_SIZE = 16
+UNSUPERVISED_BATCH_SIZE = 6
+BATCH_SIZE = 12
 
 def distil(
     model,
@@ -42,6 +43,10 @@ def distil(
         compiled_model,
         model_copy,
         translator,
+        params.natural_data_loss,
+        detach_and_roll=params.detach_and_roll,
+        algorithm_loss=params.algorithm_loss,
+        unsupervised_loss=params.unsupervised_loss,
     )
     data_loader, val_dataloader = prepare_data_loader(
         data,
@@ -52,8 +57,8 @@ def distil(
     unsupervised_data_loader = prepare_unsupervised_data_loader(
         unsupervised_data,
         tokenizer,
-        max_length=MAX_LENGTH_UNSUPERVISED,
-        batch_size=BATCH_SIZE
+        max_length=params.max_sequence_length,
+        batch_size=UNSUPERVISED_BATCH_SIZE
     )
     natural_data_loader, natural_val_dataloader = prepare_data_loader(
         natural_data,
@@ -61,19 +66,24 @@ def distil(
         max_length=MAX_LENGTH_UNSUPERVISED,
         batch_size=params.batch_size
     )
+
     combined_dataloaders = (data_loader, unsupervised_data_loader, natural_data_loader)
+    combined_eval_dataloaders = (val_dataloader, natural_val_dataloader)
 
     trainer = L.Trainer(
         logger=logger,
         accelerator="gpu",
-        devices=[0],
+        devices=1,
         enable_checkpointing=False,
         max_epochs=1,
         limit_train_batches=params.train_batches,
+        val_check_interval=100,
+        # strategy='ddp_find_unused_parameters_true'
     )
     trainer.fit(
         lightning_model,
         train_dataloaders=combined_dataloaders,
+        val_dataloaders=combined_eval_dataloaders
     )
 
     return lightning_model.adapter

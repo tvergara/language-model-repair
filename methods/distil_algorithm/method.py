@@ -11,11 +11,11 @@ def distil_algorithm(
     unsupervised_data,
     natural_data,
     params=None,
-    train_enabled=True
+    train_enabled=True,
+    compiled_model_file_name='sum-model.dill'
 ):
-    compiled_model, compiled_tokenizer, decoder = load_model()
-    important_tokens = [str(i) for i in range(10)] + ['+', '=']
-    translator = create_translator(tokenizer, compiled_tokenizer, important_tokens)
+    compiled_model, compiled_tokenizer, decoder = load_model(filename=compiled_model_file_name)
+    translator = create_translator(tokenizer, compiled_tokenizer, task=params.task)
 
     adapter = distil(
         model,
