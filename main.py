@@ -44,6 +44,7 @@ parser.add_argument('--detach_and_roll', type=lambda x: str(x).lower() == 'true'
 parser.add_argument('--compiled_model_file_name', type=str, default='sum-model.dill')
 parser.add_argument('--algorithm_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--unsupervised_loss', type=lambda x: str(x).lower() == 'true', default=True)
+parser.add_argument('--ood', type=lambda x: str(x).lower() == 'true', default=False)
 args = parser.parse_args()
 
 CACHE_DIR = os.path.expanduser(os.getenv('CACHE_DIR'))
@@ -56,7 +57,7 @@ else:
 
 METHOD = args.inject
 
-train_dataset, test_dataset = get_task(TASK)
+train_dataset, test_dataset = get_task(TASK, ood=args.ood)
 unsupervised_data = get_fineweb()
 train_natural_data, test_natural_data = get_mawps()
 
