@@ -84,7 +84,7 @@ def create_single_type_random_example(size, paren='()'):
     word = ''
     correct = True
     for _ in range(size):
-        char = random.choice(paren)  # only choose from the specified pair
+        char = random.choice(paren)
         if char == paren[0]:
             counter += 1
         else:

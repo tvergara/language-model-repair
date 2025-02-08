@@ -16,7 +16,8 @@ class Distiler(L.LightningModule):
         detach_and_roll=True,
         algorithm_loss=True,
         unsupervised_loss=True,
-        gate_dims_to_final_result=True
+        gate_dims_to_final_result=True,
+        pad_communication=0
     ):
         super().__init__()
 
@@ -35,6 +36,7 @@ class Distiler(L.LightningModule):
         self.unsupervised_loss_enabled = unsupervised_loss
         self.only_result_subspace = False
         self.gate_dims_to_final_result = gate_dims_to_final_result
+        self.pad_communication = pad_communication
         if detach_and_roll and algorithm_loss:
             self.supervised_hook = get_detach_and_roll_hook(self)
         else:
@@ -112,7 +114,7 @@ class Distiler(L.LightningModule):
         total_loss = torch.tensor(0.0, device=outputs.hidden_states[0].device, dtype=outputs.hidden_states[0].dtype)
         for i in range(min(self.learnable_layers + 1, len(outputs.hidden_states))):
 
-            adaptation = self.adapter(outputs.hidden_states[i])
+            adaptation = self.adapter(outputs.hidden_states[i + self.pad_communication])
             tensor1 = F.normalize(adaptation, p=2, dim=-1)
             tensor2 = F.normalize(self.compiled_model.residual_stream[:, 1:], p=2, dim=-1)
             loss_i = (1 - torch.sum(tensor1 * tensor2, dim=-1)).mean()
@@ -161,16 +163,13 @@ class Distiler(L.LightningModule):
         with torch.no_grad():
             if self.gate_dims_to_final_result:
                 dims = self.compiled_model.final_result_dimensions()
-                W = self.adapter.weight[:, dims]
+                W = self.adapter.weight[dims, :]
             else:
                 W = self.adapter.weight
             M = W.t()
-            MtM = M.t() @ M
-            eps = 1e-7
-            MtM_inv = torch.inverse(MtM + eps * torch.eye(MtM.size(0), device=MtM.device, dtype=MtM.dtype))
-            P = M @ MtM_inv @ M.t()
+            M_pinv = torch.linalg.pinv(M)
+            P = M @ M_pinv
             self.projection = P.detach()
-
 
     def configure_optimizers(self):
         return torch.optim.AdamW(

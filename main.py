@@ -87,7 +87,6 @@ print('model weights saved at', save_id)
 
 
 model.to('cuda')
-# sst_2_acc = evaluate_sst2(model, tokenizer)
 accuracy = evaluate_task(model, tokenizer, test_dataset)
 
 print('task', TASK)
