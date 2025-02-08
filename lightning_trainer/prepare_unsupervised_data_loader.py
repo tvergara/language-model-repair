@@ -12,7 +12,7 @@ def prepare_unsupervised_data_loader(data, tokenizer, batch_size=16, max_length=
         )
         return {'input_ids': tokens['input_ids'].squeeze(0), 'attention_mask': tokens['attention_mask']}
 
-    tokenized_data = data.map(tokenize_function, remove_columns=['text'])
+    tokenized_data = data.map(tokenize_function, remove_columns=['text', 'id', 'dump', 'url', 'file_path', 'language', 'language_score', 'token_count', 'score', 'int_score'])
 
     return DataLoader(tokenized_data, batch_size=batch_size)
 

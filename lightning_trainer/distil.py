@@ -60,15 +60,9 @@ def distil(
         max_length=params.max_sequence_length,
         batch_size=UNSUPERVISED_BATCH_SIZE
     )
-    natural_data_loader, natural_val_dataloader = prepare_data_loader(
-        natural_data,
-        tokenizer,
-        max_length=MAX_LENGTH_UNSUPERVISED,
-        batch_size=params.batch_size
-    )
 
-    combined_dataloaders = (data_loader, unsupervised_data_loader, natural_data_loader)
-    combined_eval_dataloaders = (val_dataloader, natural_val_dataloader)
+    combined_dataloaders = (data_loader, unsupervised_data_loader)
+    combined_eval_dataloaders = (val_dataloader,)
 
     trainer = L.Trainer(
         logger=logger,
@@ -78,8 +72,10 @@ def distil(
         max_epochs=1,
         limit_train_batches=params.train_batches,
         val_check_interval=100,
+        precision=32,
         # strategy='ddp_find_unused_parameters_true'
     )
+
     trainer.fit(
         lightning_model,
         train_dataloaders=combined_dataloaders,

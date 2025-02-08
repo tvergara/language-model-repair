@@ -56,7 +56,6 @@ class Transformer(nn.Module):
         if self.current_layer >= len(self.layers):
             return self.residual_stream
         self.residual_stream = self.layers[self.current_layer](self.residual_stream)
-        # self.clean_residual_stream = self.layers[self.current_layer](self.clean_residual_stream)
         self.current_layer += 1
         return self.residual_stream
 
@@ -89,7 +88,13 @@ class Transformer(nn.Module):
 
         self.residual_stream = torch.cat(updated_chunks, dim=-1)
 
+    def final_result_dimensions(self):
+        indices = []
+        for i, label in enumerate(self.residual_stream_labels):
+            if 'final_result' in label:
+                indices.append(i)
 
+        return indices
 
     def set_weights(self, compiled_model_params):
         self.embedding.weight.data.copy_(convert_to_torch(compiled_model_params['token_embed']['embeddings']))

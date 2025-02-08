@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.intermediate_detach import add_intermediate_detach
 from utils.detach_and_roll import get_detach_and_roll_hook
 
 class Distiler(L.LightningModule):
@@ -17,6 +16,7 @@ class Distiler(L.LightningModule):
         detach_and_roll=True,
         algorithm_loss=True,
         unsupervised_loss=True,
+        gate_dims_to_final_result=True
     ):
         super().__init__()
 
@@ -34,6 +34,7 @@ class Distiler(L.LightningModule):
         self.algorithm_loss_enabled = algorithm_loss
         self.unsupervised_loss_enabled = unsupervised_loss
         self.only_result_subspace = False
+        self.gate_dims_to_final_result = gate_dims_to_final_result
         if detach_and_roll and algorithm_loss:
             self.supervised_hook = get_detach_and_roll_hook(self)
         else:
@@ -43,7 +44,7 @@ class Distiler(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         self.get_projection_matrix()
-        supervised_batch, unsupervised_batch, natural_batch = batch
+        supervised_batch, unsupervised_batch = batch
 
         if self.unsupervised_loss_enabled:
             unsupervised_loss = self.unsupervised_loss(unsupervised_batch)
@@ -56,13 +57,7 @@ class Distiler(L.LightningModule):
         if self.algorithm_loss_enabled:
             self.log("algorithm_loss", algorithm_loss, on_step=True, on_epoch=False, prog_bar=True)
 
-        if self.natural_data_loss:
-            natural_loss = self.algorithm_loss(natural_batch)
-            self.log("natural_loss", natural_loss, on_step=True, on_epoch=False, prog_bar=True)
-        else:
-            natural_loss = 0
-
-        loss = algorithm_loss + unsupervised_loss + natural_loss + supervised_loss
+        loss = algorithm_loss + unsupervised_loss + supervised_loss
         return loss
 
     def unsupervised_loss(self, batch):
@@ -114,8 +109,8 @@ class Distiler(L.LightningModule):
         translated_tokens = self.tokenizer_translator(input_ids)
         self.compiled_model.embed_tokens(translated_tokens)
 
-        total_loss = 0.0
-        for i in range(self.learnable_layers + 1):
+        total_loss = torch.tensor(0.0, device=outputs.hidden_states[0].device, dtype=outputs.hidden_states[0].dtype)
+        for i in range(min(self.learnable_layers + 1, len(outputs.hidden_states))):
 
             adaptation = self.adapter(outputs.hidden_states[i])
             tensor1 = F.normalize(adaptation, p=2, dim=-1)
@@ -164,11 +159,15 @@ class Distiler(L.LightningModule):
         the columns of self.adapter.weight^T.
         """
         with torch.no_grad():
-            W = self.adapter.weight
+            if self.gate_dims_to_final_result:
+                dims = self.compiled_model.final_result_dimensions()
+                W = self.adapter.weight[:, dims]
+            else:
+                W = self.adapter.weight
             M = W.t()
             MtM = M.t() @ M
             eps = 1e-7
-            MtM_inv = torch.inverse(MtM + eps * torch.eye(MtM.size(0), device=MtM.device))
+            MtM_inv = torch.inverse(MtM + eps * torch.eye(MtM.size(0), device=MtM.device, dtype=MtM.dtype))
             P = M @ MtM_inv @ M.t()
             self.projection = P.detach()
 

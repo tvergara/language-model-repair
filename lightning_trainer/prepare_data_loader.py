@@ -15,7 +15,7 @@ class PreTokenizedDataset(Dataset):
             )
             label_start_idx = len(tokenizer(prompt)['input_ids']) - 1
             label_end_idx = label_start_idx + len(str(label))
-            loss_mask = torch.zeros_like(tokenized['input_ids'][0])
+            loss_mask = torch.zeros_like(tokenized['input_ids'][0], dtype=torch.float32)
             loss_mask[label_start_idx:label_end_idx] = 1
 
             self.data.append({
