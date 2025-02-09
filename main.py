@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from data import get_task, get_fineweb, get_mawps
 from methods.get_method import get_method
 from transformers import AutoModelForCausalLM
-from evaluation import evaluate_tiny_shakespeare, evaluate_task, evaluate_sst2
+from evaluation import run_evaluations, evaluate_task
 from utils import get_tokenizer, save_results
 
 load_dotenv()
@@ -103,3 +103,13 @@ save_results({
     'accuracy': accuracy,
     'save_id': save_id
 } | vars(args))
+
+evals = run_evaluations(model, tokenizer)
+
+save_results({
+    'task': TASK,
+    'method': METHOD,
+    'model': MODEL_NAME,
+    'accuracy': accuracy,
+    'save_id': save_id
+} | vars(args) | evals)
