@@ -47,6 +47,8 @@ def distil(
         detach_and_roll=params.detach_and_roll,
         algorithm_loss=params.algorithm_loss,
         unsupervised_loss=params.unsupervised_loss,
+        pad_communication=params.pad_communication,
+        gate_dims_to_final_result=params.only_result_subspace,
     )
     data_loader, val_dataloader = prepare_data_loader(
         data,
