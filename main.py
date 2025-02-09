@@ -20,13 +20,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=42)
 parser.add_argument('--task', type=str, default='dyck')
 parser.add_argument('--save_id', type=str, default=None)
-parser.add_argument('--model', type=str, default='gpt2-large', choices=['gpt2-large', 'gpt2-xl'])
+parser.add_argument('--model', type=str, default='gpt2', choices=['gpt2-large', 'gpt2-xl'])
 parser.add_argument('--inject', type=str, default='DISTIL')
 parser.add_argument('--read_from_support', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--write_to_support', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--tanh_in_write', type=lambda x: str(x).lower() == 'true', default=False)
-parser.add_argument('--batch_size', type=int, default=16)
-parser.add_argument('--max_sequence_length', type=int, default=70)
+parser.add_argument('--batch_size', type=int, default=2)
+parser.add_argument('--max_sequence_length', type=int, default=30)
 parser.add_argument('--lr', type=float, default=1e-6)
 parser.add_argument('--natural_data_loss', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--residue_loss', type=lambda x: str(x).lower() == 'true', default=False)
@@ -45,6 +45,7 @@ parser.add_argument('--algorithm_loss', type=lambda x: str(x).lower() == 'true',
 parser.add_argument('--unsupervised_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--ood', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--ood_new_token', type=lambda x: str(x).lower() == 'true', default=False)
+parser.add_argument('--ood2', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--only_result_subspace', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--algorithm_loss_multiplier', type=int, default=1)
 args = parser.parse_args()
@@ -63,7 +64,7 @@ else:
 
 METHOD = args.inject
 
-train_dataset, test_dataset = get_task(TASK, ood=args.ood, ood_new_token=args.ood_new_token)
+train_dataset, test_dataset = get_task(TASK, ood=args.ood, ood_new_token=args.ood_new_token, ood2=args.ood2)
 unsupervised_data = get_fineweb()
 train_natural_data, test_natural_data = get_mawps()
 

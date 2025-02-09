@@ -57,11 +57,14 @@ def create_correct_example(size):
         word += char
     return word, True
 
-def create_dyck_data(max_length, examples):
+def create_dyck_data(max_length, examples, correct_nests=False):
     data = []
     for _ in range(examples // 2):
         size = random.randint(5, max_length)
-        data.append(create_random_example(size))
+        if correct_nests:
+            data.append(generate_well_nested_example(size))
+        else:
+            data.append(create_random_example(size))
     for _ in range(examples // 2):
         size = random.randint(5, max_length)
         data.append(create_correct_example(size))
@@ -179,15 +182,41 @@ def create_single_type_dyck_data(max_length, examples, paren='()'):
         data.append(create_single_type_correct_example(size, paren))
     return data
 
+def generate_well_nested_example(total_length):
+    if total_length % 2 == 1:
+        total_length += 1
+
+    pairs = [('(', ')'), ('[', ']'), ('{', '}')]
+    result = []
+    stack = []
+
+    for i in range(total_length):
+        if not stack:
+            op, cl = random.choice(pairs)
+            result.append(op)
+            stack.append(cl)
+        elif total_length - i == len(stack):
+            result.append(stack.pop())
+        else:
+            if random.random() < 0.5:
+                op, cl = random.choice(pairs)
+                result.append(op)
+                stack.append(cl)
+            else:
+                result.append(stack.pop())
+
+    return ''.join(result), True
 
 def prepare_dyck_dataset(max_length=30, examples=10**6, test_size=0.2, 
-                         max_test_size=4000, ood=False, ood_new_token=False):
-    data = create_dyck_data(max_length, examples)
+                         max_test_size=4000, ood=False, ood_new_token=False, ood2=False):
+    data = create_dyck_data(max_length, examples, correct_nests=ood2)
     if ood and not ood_new_token:
         data = [ex for ex in data if not set(ex[0]).issubset(set("()"))]
     shuffle(data)
     formatted_data = list(map(format_data, data))
     full_dataset = DyckDataset(formatted_data)
+    t_size = min(int(test_size * len(full_dataset)), max_test_size)
+    train_size = len(full_dataset) - t_size
 
     if ood_new_token:
         train_dataset = full_dataset
@@ -195,18 +224,22 @@ def prepare_dyck_dataset(max_length=30, examples=10**6, test_size=0.2,
         ood_data = create_dyck_data_new_token(max_length, ood_examples)
         formatted_ood_data = list(map(format_data, ood_data))
         test_dataset = DyckDataset(formatted_ood_data)
-    elif not ood:
-        t_size = min(int(test_size * len(full_dataset)), max_test_size)
-        train_size = len(full_dataset) - t_size
-        train_dataset, test_dataset = random_split(full_dataset, [train_size, t_size])
-    else:
+    elif ood:
         train_dataset = full_dataset
         ood_examples = max_test_size
         ood_data = create_single_type_dyck_data(max_length, ood_examples, paren='()')
         formatted_ood_data = list(map(format_data, ood_data))
         test_dataset = DyckDataset(formatted_ood_data)
+    elif ood2:
+        _, test_dataset = random_split(full_dataset, [train_size, t_size])
+        data = create_dyck_data(max_length, examples, correct_nests=True)
+        shuffle(data)
+        formatted_data = list(map(format_data, data))
+        train_dataset = DyckDataset(formatted_data)
+    else:
+        train_dataset, test_dataset = random_split(full_dataset, [train_size, t_size])
 
     return train_dataset, test_dataset
 
 if __name__ == '__main__':
-    train_dataset, test_dataset = prepare_dyck_dataset(ood_new_token=True)
+    train_dataset, test_dataset = prepare_dyck_dataset(ood2=True)
