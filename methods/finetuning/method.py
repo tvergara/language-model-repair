@@ -9,6 +9,7 @@ def finetuning(
     unsupervised_data,
     natural_data,
     params=None,
+    **kwargs,
 ):
     model_copy = copy.deepcopy(model)
     train(

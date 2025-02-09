@@ -111,7 +111,7 @@ class Distiler(L.LightningModule):
         translated_tokens = self.tokenizer_translator(input_ids)
         self.compiled_model.embed_tokens(translated_tokens)
 
-        total_loss = torch.tensor(0.0, device=outputs.hidden_states[0].device, dtype=outputs.hidden_states[0].dtype)
+        total_loss = 0.0
         for i in range(min(self.learnable_layers + 1, len(outputs.hidden_states))):
 
             adaptation = self.adapter(outputs.hidden_states[i + self.pad_communication])
