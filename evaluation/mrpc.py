@@ -4,27 +4,20 @@ from tqdm import tqdm
 from utils import get_tokenizer
 
 def evaluate_mrpc(model, tokenizer):
-    # Ensure the tokenizer has a pad token (GPT‑2 doesn’t have one by default)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    # Load the MRPC validation split from the GLUE dataset
     dataset = load_dataset("glue", "mrpc", split="validation")
 
     correct = 0
     total = 0
     predictions = []
 
-    # Get token IDs for the words " yes" and " no"
     positive_token_id = tokenizer.encode(" yes", add_special_tokens=False)[0]
     negative_token_id = tokenizer.encode(" no", add_special_tokens=False)[0]
 
     for example in tqdm(dataset):
         sentence1 = example["sentence1"]
         sentence2 = example["sentence2"]
-        gold_label = example["label"]  # 1 for paraphrase, 0 for non‑paraphrase
+        gold_label = example["label"]
 
-        # Construct a few‑shot prompt with two examples before the target case.
         prompt = (
             "Determine whether the following two sentences are paraphrases (i.e., have the same meaning). "
             "Answer in one word: yes or no.\n\n"
@@ -45,14 +38,11 @@ def evaluate_mrpc(model, tokenizer):
         outputs = model(input_ids)
         logits = outputs.logits
 
-        # Get logits for the next token generated
         next_token_logits = logits[0, -1, :]
 
-        # Compare the scores for " yes" and " no"
         score_positive = next_token_logits[positive_token_id].item()
         score_negative = next_token_logits[negative_token_id].item()
 
-        # Decide the label based on which token score is higher
         if score_positive > score_negative:
             predicted_label = 1
         else:
@@ -83,14 +73,11 @@ if __name__ == "__main__":
 
     model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=CACHE_DIR)
 
-    # Set the pad token for GPT‑2 if not already defined
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Move the model to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Evaluate GPT‑2 on the MRPC task
     evaluate_mrpc(model, tokenizer)
 

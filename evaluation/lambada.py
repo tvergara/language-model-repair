@@ -6,26 +6,12 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from dotenv import load_dotenv
 import os
 
-def evaluate_lambada_last_token(model, tokenizer, url):
-    """
-    Evaluate GPT‑2 on Lambada by checking if the model can predict the last token.
-    
-    For each example, the text is tokenized using GPT‑2’s tokenizer. All tokens 
-    except the last are used as context, and the model's next-token prediction is 
-    compared with the actual last token.
-    
-    Args:
-        model: The language model (e.g., GPT2LMHeadModel).
-        tokenizer: The corresponding GPT‑2 tokenizer.
-        url (str): URL of the Lambada JSONL file.
-    
-    Returns:
-        The accuracy (fraction of examples for which the predicted token matches the target token).
-    """
-    print(f"Downloading Lambada JSONL file from: {url}")
-    response = requests.get(url)
-    response.raise_for_status()  # Raise an error if the download fails.
-    
+URL = "https://openaipublic.blob.core.windows.net/gpt-2/data/lambada_test.jsonl"
+
+def evaluate_lambada(model, tokenizer):
+    response = requests.get(URL)
+    response.raise_for_status()
+
     lines = response.text.splitlines()
     total = 0
     correct = 0
@@ -34,34 +20,27 @@ def evaluate_lambada_last_token(model, tokenizer, url):
         try:
             example = json.loads(line)
         except json.JSONDecodeError:
-            continue  # Skip malformed lines
+            continue
 
         full_text = example.get("text", "").strip()
         if not full_text:
-            continue  # Skip empty examples
+            continue
 
-        # Tokenize the full text using GPT‑2’s tokenizer.
         inputs = tokenizer(full_text, return_tensors="pt")
         input_ids = inputs.input_ids.to(model.device)
 
-        # Skip examples that are too short to have both context and a target token.
         if input_ids.size(1) < 2:
             continue
 
-        # The context is all tokens except the last.
         context_ids = input_ids[:, :-1]
-        # The target token is the last token.
         target_token_id = input_ids[0, -1].item()
 
-        # Run the model on the context.
         with torch.no_grad():
             outputs = model(context_ids)
             logits = outputs.logits
 
-        # Get the logits for the next token (i.e. after the context).
         next_token_logits = logits[0, -1, :]
 
-        # Greedily select the token with the highest probability.
         predicted_token_id = torch.argmax(next_token_logits).item()
 
         if predicted_token_id == target_token_id:
@@ -79,21 +58,16 @@ if __name__ == "__main__":
     save_id = '6e6efb4b-06ca-4ac6-9759-c5fd8a75d438'
     # model_name = "gpt2-large"  # Adjust the model variant as needed.
     model_name = os.path.join(CACHE_DIR, save_id)
-    
+
     tokenizer = get_tokenizer('dyck')
     # tokenizer = GPT2Tokenizer.from_pretrained(model_name)
     model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=CACHE_DIR)
-    
-    # GPT‑2 doesn't have a pad token by default; set it to the EOS token.
+
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    
-    # URL for the unprocessed Lambada test examples.
-    lambada_url = "https://openaipublic.blob.core.windows.net/gpt-2/data/lambada_test.jsonl"
-    
-    # Evaluate GPT‑2 on Lambada using last-token prediction.
-    evaluate_lambada_last_token(model, tokenizer, lambada_url)
+
+    evaluate_lambada(model, tokenizer)
 
