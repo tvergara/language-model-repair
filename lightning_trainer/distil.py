@@ -11,7 +11,7 @@ from .distiler import Distiler
 from .prepare_data_loader import prepare_data_loader
 from .prepare_unsupervised_data_loader import prepare_unsupervised_data_loader
 
-MAX_LENGTH_INT_DATASET = 15
+MAX_LENGTH_INT_DATASET = 35
 MAX_LENGTH_UNSUPERVISED = 70
 UNSUPERVISED_BATCH_SIZE = 6
 BATCH_SIZE = 12

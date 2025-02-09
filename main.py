@@ -14,12 +14,11 @@ from evaluation import run_evaluations, evaluate_task
 from utils import get_tokenizer, save_results
 
 load_dotenv()
-torch.manual_seed(42)
-random.seed(42)
 
 save_id = str(uuid.uuid4())
 parser = argparse.ArgumentParser()
-parser.add_argument('--task', type=str, default='int-sum')
+parser.add_argument('--seed', type=int, default=42)
+parser.add_argument('--task', type=str, default='dyck')
 parser.add_argument('--save_id', type=str, default=None)
 parser.add_argument('--model', type=str, default='gpt2-large', choices=['gpt2-large', 'gpt2-xl'])
 parser.add_argument('--inject', type=str, default='DISTIL')
@@ -31,7 +30,7 @@ parser.add_argument('--max_sequence_length', type=int, default=70)
 parser.add_argument('--lr', type=float, default=1e-6)
 parser.add_argument('--natural_data_loss', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--residue_loss', type=lambda x: str(x).lower() == 'true', default=False)
-parser.add_argument('--train_batches', type=int, default=4000)
+parser.add_argument('--train_batches', type=int, default=20000)
 parser.add_argument('--cross_attn_every_x_layers', type=int, default=1)
 parser.add_argument('--attention_heads', type=int, default=8)
 parser.add_argument('--key_size', type=int, default=60)
@@ -41,13 +40,17 @@ parser.add_argument('--compiled_model_loss', type=lambda x: str(x).lower() == 't
 parser.add_argument('--adapter_path', type=str, default=None)
 parser.add_argument('--saving_id', type=str, default=save_id)
 parser.add_argument('--detach_and_roll', type=lambda x: str(x).lower() == 'true', default=True)
-parser.add_argument('--compiled_model_file_name', type=str, default='sum-model.dill')
+parser.add_argument('--compiled_model_file_name', type=str, default='dyck-model.dill')
 parser.add_argument('--algorithm_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--unsupervised_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--ood', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--ood_new_token', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--only_result_subspace', type=lambda x: str(x).lower() == 'true', default=True)
 args = parser.parse_args()
+
+seed = args.seed
+torch.manual_seed(seed)
+random.seed(seed)
 
 CACHE_DIR = os.path.expanduser(os.getenv('CACHE_DIR'))
 TASK = args.task

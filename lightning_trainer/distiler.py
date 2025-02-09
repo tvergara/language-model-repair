@@ -106,7 +106,6 @@ class Distiler(L.LightningModule):
 
         return loss, compiled_model_loss
 
-
     def algorithm_loss(self, outputs, input_ids):
         translated_tokens = self.tokenizer_translator(input_ids)
         self.compiled_model.embed_tokens(translated_tokens)
@@ -115,6 +114,7 @@ class Distiler(L.LightningModule):
         for i in range(min(self.learnable_layers + 1, len(outputs.hidden_states))):
 
             adaptation = self.adapter(outputs.hidden_states[i + self.pad_communication])
+            # breakpoint()
             tensor1 = F.normalize(adaptation, p=2, dim=-1)
             tensor2 = F.normalize(self.compiled_model.residual_stream[:, 1:], p=2, dim=-1)
             loss_i = (1 - torch.sum(tensor1 * tensor2, dim=-1)).mean()
