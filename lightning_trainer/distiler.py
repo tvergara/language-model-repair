@@ -17,7 +17,8 @@ class Distiler(L.LightningModule):
         algorithm_loss=True,
         unsupervised_loss=True,
         gate_dims_to_final_result=True,
-        pad_communication=0
+        pad_communication=0,
+        algorithm_loss_multiplier=1,
     ):
         super().__init__()
 
@@ -37,6 +38,7 @@ class Distiler(L.LightningModule):
         self.only_result_subspace = False
         self.gate_dims_to_final_result = gate_dims_to_final_result
         self.pad_communication = pad_communication
+        self.algorithm_loss_multiplier = algorithm_loss_multiplier
         if detach_and_roll and algorithm_loss:
             self.supervised_hook = get_detach_and_roll_hook(self)
         else:
@@ -100,7 +102,7 @@ class Distiler(L.LightningModule):
         loss = loss.sum() / shift_loss_mask.sum()
 
         if self.algorithm_loss_enabled:
-            compiled_model_loss = self.algorithm_loss(outputs, input_ids)
+            compiled_model_loss = self.algorithm_loss(outputs, input_ids) * self.algorithm_loss_multiplier
         else:
             compiled_model_loss = 0
 

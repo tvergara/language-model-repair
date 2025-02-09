@@ -46,6 +46,7 @@ parser.add_argument('--unsupervised_loss', type=lambda x: str(x).lower() == 'tru
 parser.add_argument('--ood', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--ood_new_token', type=lambda x: str(x).lower() == 'true', default=False)
 parser.add_argument('--only_result_subspace', type=lambda x: str(x).lower() == 'true', default=True)
+parser.add_argument('--algorithm_loss_multiplier', type=int, default=1)
 args = parser.parse_args()
 
 seed = args.seed

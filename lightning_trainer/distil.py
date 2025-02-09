@@ -49,6 +49,7 @@ def distil(
         unsupervised_loss=params.unsupervised_loss,
         pad_communication=params.pad_communication,
         gate_dims_to_final_result=params.only_result_subspace,
+        algorithm_loss_multiplier=params.algorithm_loss_multiplier,
     )
     data_loader, val_dataloader = prepare_data_loader(
         data,
