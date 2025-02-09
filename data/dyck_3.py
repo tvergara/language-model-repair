@@ -127,6 +127,8 @@ def create_single_type_dyck_data(max_length, examples, paren='()'):
 
 def prepare_dyck_dataset(max_length=30, examples=10**6, test_size=0.2, max_test_size=4000, ood=False):
     data = create_dyck_data(max_length, examples)
+    if ood:
+        data = [ex for ex in data if not set(ex[0]).issubset(set("()"))]
     shuffle(data)
     formatted_data = list(map(format_data, data))
     full_dataset = DyckDataset(formatted_data)
