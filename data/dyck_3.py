@@ -5,6 +5,7 @@ from collections import Counter
 from torch.utils.data import Dataset, random_split
 
 ALL_PAIRS = '()[]{}'
+LENGTH_GEN_MULT = 3
 
 class DyckDataset(Dataset):
     def __init__(self, data):
@@ -182,6 +183,16 @@ def create_single_type_dyck_data(max_length, examples, paren='()'):
         data.append(create_single_type_correct_example(size, paren))
     return data
 
+def create_length_gen_examples(max_length, examples):
+    data = []
+    for _ in range(examples):
+        size = random.randint(5 * LENGTH_GEN_MULT, max_length * LENGTH_GEN_MULT)
+        example, label = create_correct_example(size)
+        example = example[:-1]
+        data.append((example, False))
+    return data
+
+
 def generate_well_nested_example(total_length):
     if total_length % 2 == 1:
         total_length += 1
@@ -207,8 +218,16 @@ def generate_well_nested_example(total_length):
 
     return ''.join(result), True
 
-def prepare_dyck_dataset(max_length=30, examples=10**6, test_size=0.2, 
-                         max_test_size=4000, ood=False, ood_new_token=False, ood2=False):
+def prepare_dyck_dataset(
+    max_length=30,
+    examples=10**6,
+    test_size=0.2,
+    max_test_size=4000,
+    ood=False,
+    ood_new_token=False,
+    ood2=False,
+    length_gen=False,
+):
     data = create_dyck_data(max_length, examples, correct_nests=ood2)
     if ood and not ood_new_token:
         data = [ex for ex in data if not set(ex[0]).issubset(set("()"))]
@@ -236,10 +255,17 @@ def prepare_dyck_dataset(max_length=30, examples=10**6, test_size=0.2,
         shuffle(data)
         formatted_data = list(map(format_data, data))
         train_dataset = DyckDataset(formatted_data)
+    elif length_gen:
+        train_dataset, test_dataset = random_split(full_dataset, [train_size, t_size])
+        test_data = create_length_gen_examples(max_length, t_size)
+        shuffle(test_data)
+        formatted_data = list(map(format_data, test_data))
+        test_dataset = DyckDataset(formatted_data)
     else:
         train_dataset, test_dataset = random_split(full_dataset, [train_size, t_size])
 
     return train_dataset, test_dataset
 
 if __name__ == '__main__':
-    train_dataset, test_dataset = prepare_dyck_dataset(ood2=True)
+    train_dataset, test_dataset = prepare_dyck_dataset(length_gen=True)
+    next(iter(test_dataset))[1]
