@@ -77,7 +77,6 @@ def format_data(example):
     return f"Are parenthesis here correctly matched? {term}\nAnswer:", response
 
 def create_random_example_new_token(size):
-    """Generate a random example with the extended alphabet '()[]{}<>'."""
     extended_pairs = '()[]{}<>'
     counter = Counter()
     word = ''
@@ -183,7 +182,7 @@ def create_single_type_dyck_data(max_length, examples, paren='()'):
         data.append(create_single_type_correct_example(size, paren))
     return data
 
-def create_length_gen_examples(max_length, examples):
+def create_almost_balanced_example(max_length, examples):
     data = []
     for _ in range(examples):
         size = random.randint(5 * LENGTH_GEN_MULT, max_length * LENGTH_GEN_MULT)
@@ -223,14 +222,11 @@ def prepare_dyck_dataset(
     examples=10**6,
     test_size=0.2,
     max_test_size=4000,
-    ood=False,
     ood_new_token=False,
-    ood2=False,
-    length_gen=False,
+    length_ood=False,
+    almost_balanced=False,
 ):
-    data = create_dyck_data(max_length, examples, correct_nests=ood2)
-    if ood and not ood_new_token:
-        data = [ex for ex in data if not set(ex[0]).issubset(set("()"))]
+    data = create_dyck_data(max_length, examples)
     shuffle(data)
     formatted_data = list(map(format_data, data))
     full_dataset = DyckDataset(formatted_data)
@@ -243,21 +239,15 @@ def prepare_dyck_dataset(
         ood_data = create_dyck_data_new_token(max_length, ood_examples)
         formatted_ood_data = list(map(format_data, ood_data))
         test_dataset = DyckDataset(formatted_ood_data)
-    elif ood:
-        train_dataset = full_dataset
-        ood_examples = max_test_size
-        ood_data = create_single_type_dyck_data(max_length, ood_examples, paren='()')
-        formatted_ood_data = list(map(format_data, ood_data))
-        test_dataset = DyckDataset(formatted_ood_data)
-    elif ood2:
-        _, test_dataset = random_split(full_dataset, [train_size, t_size])
-        data = create_dyck_data(max_length, examples, correct_nests=True)
+    elif length_ood:
+        train_dataset, _ = random_split(full_dataset, [train_size, t_size])
+        data = create_dyck_data(max_length * 3, t_size)
         shuffle(data)
         formatted_data = list(map(format_data, data))
-        train_dataset = DyckDataset(formatted_data)
-    elif length_gen:
+        test_dataset = DyckDataset(formatted_data)
+    elif almost_balanced:
         train_dataset, test_dataset = random_split(full_dataset, [train_size, t_size])
-        test_data = create_length_gen_examples(max_length, t_size)
+        test_data = create_almost_balanced_example(max_length, t_size)
         shuffle(test_data)
         formatted_data = list(map(format_data, test_data))
         test_dataset = DyckDataset(formatted_data)
@@ -267,5 +257,4 @@ def prepare_dyck_dataset(
     return train_dataset, test_dataset
 
 if __name__ == '__main__':
-    train_dataset, test_dataset = prepare_dyck_dataset(length_gen=True)
-    next(iter(test_dataset))[1]
+    train_dataset, test_dataset = prepare_dyck_dataset(length_ood=True)
