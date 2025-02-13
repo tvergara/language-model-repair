@@ -11,7 +11,7 @@ from data import get_task, get_fineweb, get_mawps
 from methods.get_method import get_method
 from transformers import AutoModelForCausalLM
 from evaluation import run_evaluations, evaluate_task
-from utils import get_tokenizer, save_results, MAX_LENGTH_BY_TASK
+from utils import get_tokenizer, save_results, MAX_LENGTH_BY_TASK, MODEL_NAME_BY_TASK
 
 load_dotenv()
 
@@ -40,7 +40,6 @@ parser.add_argument('--compiled_model_loss', type=lambda x: str(x).lower() == 't
 parser.add_argument('--adapter_path', type=str, default=None)
 parser.add_argument('--saving_id', type=str, default=save_id)
 parser.add_argument('--detach_and_roll', type=lambda x: str(x).lower() == 'true', default=True)
-parser.add_argument('--compiled_model_file_name', type=str, default='dyck-model.dill')
 parser.add_argument('--algorithm_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--unsupervised_loss', type=lambda x: str(x).lower() == 'true', default=True)
 parser.add_argument('--ood', type=lambda x: str(x).lower() == 'true', default=False)
@@ -66,6 +65,7 @@ else:
 METHOD = args.inject
 
 args.max_sequence_length_supervised = MAX_LENGTH_BY_TASK[TASK]
+args.compiled_model_file_name = MODEL_NAME_BY_TASK[TASK]
 
 train_dataset, test_dataset = get_task(TASK, ood=args.ood, ood_new_token=args.ood_new_token, ood2=args.ood2, ood_length=args.ood_length)
 unsupervised_data = get_fineweb()
