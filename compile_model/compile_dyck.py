@@ -23,18 +23,18 @@ def shuffle_dyck(
         def compare_left(x, y, left=left):
             return x == left
         starts = rasp.Select(rasp.tokens, rasp.tokens, compare_left)
-        start_counts = rasp.SelectorWidth(starts).named('start_counts')
+        start_counts = rasp.SelectorWidth(starts).named(f"{left}_start_counts")
 
         def compare_right(x, y, right=right):
             return x == right
         ends = rasp.Select(rasp.tokens, rasp.tokens, compare_right)
-        end_counts = rasp.SelectorWidth(ends).named('end_counts')
+        end_counts = rasp.SelectorWidth(ends).named(f"{right}_end_counts")
 
-        diffs = start_counts - end_counts
+        diffs = (start_counts - end_counts).named(f"{left + right}_diffs")
         all_diffs.append(diffs)
 
         negs_selector = rasp.Select(diffs, rasp.tokens, lambda x, y: x < 0)
-        negs_counter = rasp.SelectorWidth(negs_selector).named('negative_counters')
+        negs_counter = rasp.SelectorWidth(negs_selector).named(f"{left + right}_negative_counters")
         all_negs.append(negs_counter)
 
     current_negs = all_negs[0]
@@ -43,11 +43,11 @@ def shuffle_dyck(
     aggregated_negs = current_negs.named('aggregated_negatives')
 
     current_diffs = all_diffs[0]
-    for diffs in all_diffs[1:]:
-        current_diffs = rasp.SequenceMap(lambda x, y: 1 if (x != 0 or y != 0) else 0, current_diffs, diffs)
+    for i, diffs in enumerate(all_diffs[1:]):
+        current_diffs = rasp.SequenceMap(lambda x, y: 1 if (x != 0 or y != 0) else 0, current_diffs, diffs).named(f"aggregated_diffs_tmp_{i}")
     aggregated_diffs = current_diffs.named('aggregated_diffs')
 
-    result = rasp.SequenceMap(lambda x, y: x == 0 and y == 0, aggregated_negs, aggregated_diffs)
+    result = rasp.SequenceMap(lambda x, y: x == 0 and y == 0, aggregated_negs, aggregated_diffs).named('unfiltered_result')
     filtered_result = rasp.SequenceMap(lambda x, y: x if y == 'compute' else False, result, rasp.tokens)
     return filtered_result.named('final_result')
 
