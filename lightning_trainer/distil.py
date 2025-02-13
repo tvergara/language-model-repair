@@ -11,11 +11,6 @@ from .distiler import Distiler
 from .prepare_data_loader import prepare_data_loader
 from .prepare_unsupervised_data_loader import prepare_unsupervised_data_loader
 
-MAX_LENGTH_INT_DATASET = 35
-MAX_LENGTH_UNSUPERVISED = 70
-UNSUPERVISED_BATCH_SIZE = 6
-BATCH_SIZE = 12
-
 def distil(
     model,
     compiled_model,
@@ -54,14 +49,14 @@ def distil(
     data_loader, val_dataloader = prepare_data_loader(
         data,
         tokenizer,
-        max_length=MAX_LENGTH_INT_DATASET,
-        batch_size=BATCH_SIZE
+        max_length=params.max_sequence_length_supervised,
+        batch_size=params.batch_size
     )
     unsupervised_data_loader = prepare_unsupervised_data_loader(
         unsupervised_data,
         tokenizer,
         max_length=params.max_sequence_length,
-        batch_size=UNSUPERVISED_BATCH_SIZE
+        batch_size=params.batch_size
     )
 
     combined_dataloaders = (data_loader, unsupervised_data_loader)
@@ -76,7 +71,6 @@ def distil(
         limit_train_batches=params.train_batches,
         val_check_interval=100,
         precision=32,
-        # strategy='ddp_find_unused_parameters_true'
     )
 
     trainer.fit(

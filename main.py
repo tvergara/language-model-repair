@@ -11,7 +11,7 @@ from data import get_task, get_fineweb, get_mawps
 from methods.get_method import get_method
 from transformers import AutoModelForCausalLM
 from evaluation import run_evaluations, evaluate_task
-from utils import get_tokenizer, save_results
+from utils import get_tokenizer, save_results, MAX_LENGTH_BY_TASK
 
 load_dotenv()
 
@@ -64,6 +64,8 @@ else:
     MODEL_NAME = args.model
 
 METHOD = args.inject
+
+args.max_sequence_length_supervised = MAX_LENGTH_BY_TASK[TASK]
 
 train_dataset, test_dataset = get_task(TASK, ood=args.ood, ood_new_token=args.ood_new_token, ood2=args.ood2, ood_length=args.ood_length)
 unsupervised_data = get_fineweb()
