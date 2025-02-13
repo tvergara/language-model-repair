@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from data import get_task, get_fineweb, get_mawps
 from methods.get_method import get_method
 from transformers import AutoModelForCausalLM
-from evaluation import run_evaluations, evaluate_task
+from evaluation import run_evaluations, evaluate_task, run_ood_evals
 from utils import get_tokenizer, save_results, MAX_LENGTH_BY_TASK, MODEL_NAME_BY_TASK
 
 load_dotenv()
@@ -67,7 +67,7 @@ METHOD = args.inject
 args.max_sequence_length_supervised = MAX_LENGTH_BY_TASK[TASK]
 args.compiled_model_file_name = MODEL_NAME_BY_TASK[TASK]
 
-train_dataset, test_dataset = get_task(TASK, ood=args.ood, ood_new_token=args.ood_new_token, ood2=args.ood2, ood_length=args.ood_length)
+train_dataset, test_dataset = get_task(TASK)
 unsupervised_data = get_fineweb()
 train_natural_data, test_natural_data = get_mawps()
 
@@ -113,6 +113,7 @@ save_results({
 } | vars(args))
 
 evals = run_evaluations(model, tokenizer)
+ood_evals = run_ood_evals(model, tokenizer, TASK)
 
 save_results({
     'task': TASK,
@@ -120,4 +121,4 @@ save_results({
     'model': MODEL_NAME,
     'accuracy': accuracy,
     'save_id': save_id
-} | vars(args) | evals)
+} | vars(args) | evals | ood_evals)

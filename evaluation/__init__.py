@@ -3,6 +3,8 @@ from .task import evaluate_task
 from .sst2 import evaluate_sst2
 from .lambada import evaluate_lambada
 from .mrpc import evaluate_mrpc
+from utils import OOD_EVALS_BY_TASK
+from data import get_task
 
 
 def run_evaluations(model, tokenizer):
@@ -14,6 +16,18 @@ def run_evaluations(model, tokenizer):
     }
 
     print('Evaluation finished', results)
+    return results
+
+def run_ood_evals(model, tokenizer, task):
+    flags = OOD_EVALS_BY_TASK.get(task, [])
+    results = {}
+
+    for flag in flags:
+        kwargs = {flag: True}
+        _, test_set = get_task(task, **kwargs)
+        eval_result = evaluate_task(model, tokenizer, test_set)
+        results[flag] = eval_result
+
     return results
 
 
