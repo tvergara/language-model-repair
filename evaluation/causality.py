@@ -1,5 +1,11 @@
 import torch
 from tqdm import tqdm
+import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from utils import get_tokenizer, MODEL_NAME_BY_TASK
+from data import get_task
+from compile_model.load_compiled_model import load_model
+import random
 
 def evaluate_task_causality(model, tokenizer, data, subspace, layer=7, noise_norm=0.3):
     model.eval()
@@ -62,62 +68,45 @@ def get_hook(projection, norm, complement=False):
         return (hidden_states, *args)
     return hook
 
-if __name__ == '__main__':
-    import os
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from utils import get_tokenizer
-    from data.dyck_3 import prepare_dyck_dataset
-    from data.int_sum import prepare_sum_dataset
-    from compile_model.load_compiled_model import load_model
-    import torch
-    import random
-    torch.manual_seed(42)
-    random.seed(42)
 
+def get_results_for_task(save_id, task, device):
     CACHE_DIR = os.path.expanduser(os.getenv('CACHE_DIR'))
-    # save_id = '6e6efb4b-06ca-4ac6-9759-c5fd8a75d438'
-    save_id = '291d3657-f099-4e7c-a0c4-7912981efea6'
     MODEL_NAME = os.path.join(CACHE_DIR, save_id)
-    DEVICE = 'cuda:4'
-    STORAGE_DIR = os.getenv('STORAGE_DIR')
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, cache_dir=CACHE_DIR).to(DEVICE)
-    task = 'int-sum'
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, cache_dir=CACHE_DIR).to(device)
     tokenizer = get_tokenizer(task)
-
-    # _, test_set = prepare_dyck_dataset()
-    _, test_set = prepare_sum_dataset()
-    compiled_model, compiled_tokenizer, decoder = load_model(filename='sum-model.dill')
+    compiled_model_file_name = MODEL_NAME_BY_TASK[task]
+    _, test_set = get_task(task)
+    compiled_model, compiled_tokenizer, decoder = load_model(filename=compiled_model_file_name)
 
     adapter_path = os.path.join(MODEL_NAME, "adapter.pth")
     adapter = torch.nn.Linear(model.config.hidden_size, compiled_model.model_dim)
     adapter.load_state_dict(torch.load(adapter_path))
-    adapter.to(DEVICE)
+    adapter.to(device)
 
     layer = len(compiled_model.layers)
-
-    # result_start = 131
-    # result_end = 133
-    result_start = 196
-    result_end = 206
-    # for i, label in enumerate(compiled_model.residual_stream_labels):
-    #     if 'final_assigna' in label:
-    #         print(i, label)
-    adapter.weight.shape
-    len(compiled_model.residual_stream_labels)
-    # subspace = adapter.weight[result_start:result_end]
-    # subspace = torch.rand(subspace.shape).to(DEVICE)
-
-    # acc = evaluate_task_causality(model, tokenizer, test_set, subspace, layer, 0)
-    # print('acc', acc)
 
     results = []
     for noise in [0, 5, 10, 30]:
         for r in [True, False]:
-            subspace = adapter.weight[result_start:result_end]
+            dims = compiled_model.final_result_dimensions()
+            subspace = adapter.weight[dims, :]
             if r:
-                subspace = torch.rand(subspace.shape).to(DEVICE)
+                subspace = torch.rand(subspace.shape).to(device)
 
             acc = evaluate_task_causality(model, tokenizer, test_set, subspace, layer, noise)
             results.append((acc, noise, r))
+
+    return results
+
+
+if __name__ == '__main__':
+    torch.manual_seed(42)
+    random.seed(42)
+
+    task = 'int-sum'
+    save_id = '291d3657-f099-4e7c-a0c4-7912981efea6'
+    device = 'cuda:4'
+
+    results = get_results_for_task(save_id, task, device)
 
     print('results', results)
